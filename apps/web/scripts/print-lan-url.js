@@ -10,5 +10,5 @@ function lanAddress() {
 }
 
 const ip = lanAddress();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3100;
 console.log(`\n  Network:  http://${ip ? `${ip}:${port}` : 'unavailable — no active network interface'}\n`);

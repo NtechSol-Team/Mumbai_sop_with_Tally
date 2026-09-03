@@ -28,7 +28,7 @@ const envSchema = z.object({
   // the same network) — a single value still works exactly as before.
   WEB_ORIGIN: z
     .string()
-    .default('http://localhost:3000')
+    .default('http://localhost:3100')
     .transform((s) => s.split(',').map((o) => o.trim()).filter(Boolean)),
 
   RAZORPAY_KEY_ID: z.string().default('rzp_test_placeholder'),

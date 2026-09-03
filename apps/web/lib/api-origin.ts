@@ -9,7 +9,7 @@
  *
  * So for **private/LAN targets only**, the host is re-derived at runtime from
  * whatever address the browser actually used to load the page: open the app on
- * http://192.168.2.104:3000 and the API is http://192.168.2.104:4000, open it on
+ * http://192.168.2.104:3100 and the API is http://192.168.2.104:4100, open it on
  * localhost and it stays localhost. The port and protocol from the configured
  * URL are kept as-is.
  *
@@ -45,7 +45,7 @@ function resolve(configured: string): string {
   }
 }
 
-const CONFIGURED_API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const CONFIGURED_API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
 const CONFIGURED_SOCKET = process.env.NEXT_PUBLIC_SOCKET_URL ?? CONFIGURED_API;
 
 export const apiOrigin = (): string => resolve(CONFIGURED_API);

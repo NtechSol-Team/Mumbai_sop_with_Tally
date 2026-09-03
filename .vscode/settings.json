@@ -1,0 +1,23 @@
+{
+  // Use the TypeScript that ships with the project (node_modules), not the one
+  // bundled in the editor. The bundled one is a newer preview that flags
+  // `moduleResolution: "Node"` and `baseUrl` as deprecated — warnings the pinned
+  // compiler (and `npm run typecheck`) do not emit. Run
+  // "TypeScript: Select TypeScript Version" → "Use Workspace Version" once.
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+
+  // The Prisma extension's schema validation must match the pinned Prisma
+  // version (5.x). If it still reports `url` in the datasource as unsupported,
+  // that is a newer-than-project language server — `npx prisma validate` and
+  // `npx prisma generate` are the source of truth and both pass.
+  "prisma.showPrismaDataPlatformNotification": false,
+
+  "[prisma]": { "editor.defaultFormatter": "Prisma.prisma" },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.next": true,
+    "apps/*/node_modules": true
+  }
+}

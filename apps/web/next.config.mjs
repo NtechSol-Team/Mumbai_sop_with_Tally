@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
 const { hostname, port, protocol } = new URL(apiUrl);
 
 const nextConfig = {
