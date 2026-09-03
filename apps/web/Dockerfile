@@ -1,4 +1,4 @@
-# SCFC Web — Next.js 14 frontend.
+# Mumbai ERP Web — Next.js 14 frontend.
 # Built from the monorepo root context: docker build -f apps/web/Dockerfile .
 FROM node:20-alpine
 
@@ -7,7 +7,7 @@ WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
-RUN npm ci --include=dev --workspace @scfc/web --include-workspace-root
+RUN npm ci --include=dev --workspace @mumbai-erp/web --include-workspace-root
 
 COPY apps/web apps/web
 

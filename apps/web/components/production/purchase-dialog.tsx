@@ -263,7 +263,7 @@ export function PurchaseDialog({ open, onOpenChange, editBill }: { open: boolean
                 value={supplierName}
                 onChange={(e) => { setSupplier(e.target.value); setShowSuggestions(true); }}
                 onFocus={() => setShowSuggestions(true)}
-                placeholder="e.g. APMC Surat"
+                placeholder="e.g. APMC Vashi"
                 autoComplete="off"
               />
             </div>

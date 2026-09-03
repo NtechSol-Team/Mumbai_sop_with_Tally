@@ -28,7 +28,7 @@ export interface PrinterSettings {
   androidName?: string;
 }
 
-const KEY = 'scfc-printer-settings';
+const KEY = 'mumbai-erp-printer-settings';
 
 const DEFAULTS: PrinterSettings = {
   transport: 'auto',

@@ -17,7 +17,7 @@ const IST_SUFFIX = 'T00:00:00+05:30';
 
 /**
  * Parse a calendar date the way the person typing it means it: "2026-07-31" is
- * midnight *in Surat*, not in London. Anything that already carries a time (a full
+ * midnight *in India (IST)*, not in London. Anything that already carries a time (a full
  * ISO timestamp, a Date, an epoch) is passed straight through untouched.
  */
 export const istDate = z.preprocess(

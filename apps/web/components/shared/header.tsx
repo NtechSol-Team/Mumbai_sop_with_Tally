@@ -50,7 +50,7 @@ export function Header() {
         </button>
         <div className="min-w-0">
           <h1 className="truncate text-label font-bold leading-none sm:text-page-heading">{titleFromPath(pathname)}</h1>
-          <p className="mt-1 hidden text-caption text-muted-foreground sm:block">Surat Food Chain</p>
+          <p className="mt-1 hidden text-caption text-muted-foreground sm:block">Mumbai ERP</p>
         </div>
       </div>
 

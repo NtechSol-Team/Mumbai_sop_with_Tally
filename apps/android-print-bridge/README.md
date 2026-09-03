@@ -1,6 +1,6 @@
-# SCFC Print Bridge (Android)
+# Mumbai ERP Print Bridge (Android)
 
-A small Android app that wraps the deployed SCFC web app in a full-screen WebView and
+A small Android app that wraps the deployed Mumbai ERP web app in a full-screen WebView and
 gives it what mobile Chrome cannot: **Bluetooth ESC/POS receipt printing**.
 
 ## Why this app exists
@@ -23,7 +23,7 @@ Injected as `window.AndroidPrinter` before page load:
 ```
 getBridgeVersion(): string                      // sync feature-detection marker
 request(id, method, paramsJson): void           // async; result delivered via
-window.__scfcPrinterBridgeResolve(id, json)     //   {"ok":true,"data":…} | {"ok":false,"error":…}
+window.__mumbaiErpPrinterBridgeResolve(id, json)     //   {"ok":true,"data":…} | {"ok":false,"error":…}
 ```
 
 Methods: `getPairedPrinters`, `connect {mac}`, `disconnect`, `write {data: base64 ESC/POS}`,
@@ -66,8 +66,8 @@ over and open it.
 ## Configure & use
 
 1. Pair the printer in Android **Settings → Bluetooth** (one time).
-2. Open **SCFC Print Bridge**. First launch asks for the server address — enter your
-   deployed web app URL (e.g. `https://scfc-web.onrender.com`, or `http://192.168.x.x:3000`
+2. Open **Mumbai ERP Print Bridge**. First launch asks for the server address — enter your
+   deployed web app URL (e.g. `https://your-mumbai-erp-domain.com`, or `http://192.168.x.x:3100`
    for LAN dev; cleartext http is allowed for this).
 3. Log in as usual, open **POS → printer icon (Printer settings)**:
    - the dialog shows *"Receipts print via: Bluetooth printer app"*,

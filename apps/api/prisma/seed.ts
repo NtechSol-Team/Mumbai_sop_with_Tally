@@ -41,29 +41,29 @@ async function wipe(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log('🌱 Seeding Surat Food Chain...');
+  console.log('🌱 Seeding Mumbai ERP...');
   await wipe();
 
   // ── Outlets (created first; owners linked after users exist) ───────────────
   const [adajan, vesu, katargam] = await Promise.all([
-    prisma.outlet.create({ data: { name: 'Adajan Outlet', code: 'OUT-ADJ', address: 'Adajan Gam Rd, Surat', phone: '+91 90000 11111', creditPeriodDays: 15 } }),
-    prisma.outlet.create({ data: { name: 'Vesu Outlet', code: 'OUT-VESU', address: 'VIP Rd, Vesu, Surat', phone: '+91 90000 22222', creditPeriodDays: 30 } }),
-    prisma.outlet.create({ data: { name: 'Katargam Outlet', code: 'OUT-KAT', address: 'Katargam Main Rd, Surat', phone: '+91 90000 33333', creditPeriodDays: 7 } }),
+    prisma.outlet.create({ data: { name: 'Andheri Outlet', code: 'OUT-AND', address: 'Andheri West, Mumbai', phone: '+91 90000 11111', creditPeriodDays: 15 } }),
+    prisma.outlet.create({ data: { name: 'Bandra Outlet', code: 'OUT-BND', address: 'Linking Rd, Bandra West, Mumbai', phone: '+91 90000 22222', creditPeriodDays: 30 } }),
+    prisma.outlet.create({ data: { name: 'Dadar Outlet', code: 'OUT-DAD', address: 'Dr Ambedkar Rd, Dadar, Mumbai', phone: '+91 90000 33333', creditPeriodDays: 7 } }),
   ]);
 
   // ── Users ──────────────────────────────────────────────────────────────────
   const admin = await prisma.user.create({
-    data: { userId: 'ADMIN001', email: 'admin@suratfood.com', name: 'Ramesh Patel', phone: '+91 99999 00001', role: UserRole.SUPER_ADMIN, passwordHash: await hash('Admin@123') },
+    data: { userId: 'ADMIN001', email: 'admin@mumbaierp.local', name: 'Ramesh Patel', phone: '+91 99999 00001', role: UserRole.SUPER_ADMIN, passwordHash: await hash('Admin@123') },
   });
   const godown = await prisma.user.create({
-    data: { userId: 'GODOWN001', email: 'godown@suratfood.com', name: 'Suresh Shah', phone: '+91 99999 00002', role: UserRole.GODOWN_MANAGER, passwordHash: await hash('Godown@123'), createdById: admin.id },
+    data: { userId: 'GODOWN001', email: 'godown@mumbaierp.local', name: 'Suresh Shah', phone: '+91 99999 00002', role: UserRole.GODOWN_MANAGER, passwordHash: await hash('Godown@123'), createdById: admin.id },
   });
 
-  const owner1 = await prisma.user.create({ data: { userId: 'OWNER001', email: 'owner.adajan@suratfood.com', name: 'Kiran Mehta', phone: '+91 99999 11111', role: UserRole.FRANCHISE_OWNER, outletId: adajan.id, passwordHash: await hash('Owner@123'), createdById: admin.id } });
-  const owner2 = await prisma.user.create({ data: { userId: 'OWNER002', email: 'owner.vesu@suratfood.com', name: 'Nilesh Desai', phone: '+91 99999 22222', role: UserRole.FRANCHISE_OWNER, outletId: vesu.id, passwordHash: await hash('Owner@123'), createdById: admin.id } });
-  const owner3 = await prisma.user.create({ data: { userId: 'OWNER003', email: 'owner.katargam@suratfood.com', name: 'Bhavna Joshi', phone: '+91 99999 33333', role: UserRole.FRANCHISE_OWNER, outletId: katargam.id, passwordHash: await hash('Owner@123'), createdById: admin.id } });
+  const owner1 = await prisma.user.create({ data: { userId: 'OWNER001', email: 'owner.adajan@mumbaierp.local', name: 'Kiran Mehta', phone: '+91 99999 11111', role: UserRole.FRANCHISE_OWNER, outletId: adajan.id, passwordHash: await hash('Owner@123'), createdById: admin.id } });
+  const owner2 = await prisma.user.create({ data: { userId: 'OWNER002', email: 'owner.vesu@mumbaierp.local', name: 'Nilesh Desai', phone: '+91 99999 22222', role: UserRole.FRANCHISE_OWNER, outletId: vesu.id, passwordHash: await hash('Owner@123'), createdById: admin.id } });
+  const owner3 = await prisma.user.create({ data: { userId: 'OWNER003', email: 'owner.katargam@mumbaierp.local', name: 'Bhavna Joshi', phone: '+91 99999 33333', role: UserRole.FRANCHISE_OWNER, outletId: katargam.id, passwordHash: await hash('Owner@123'), createdById: admin.id } });
 
-  await prisma.user.create({ data: { userId: 'CASH001', email: 'cashier.adajan@suratfood.com', name: 'Amit Prajapati', role: UserRole.CASHIER, outletId: adajan.id, passwordHash: await hash('Cashier@123'), createdById: admin.id } });
+  await prisma.user.create({ data: { userId: 'CASH001', email: 'cashier.adajan@mumbaierp.local', name: 'Amit Prajapati', role: UserRole.CASHIER, outletId: adajan.id, passwordHash: await hash('Cashier@123'), createdById: admin.id } });
 
   await Promise.all([
     prisma.outlet.update({ where: { id: adajan.id }, data: { ownerUserId: owner1.id, createdById: admin.id } }),
@@ -105,7 +105,7 @@ async function main(): Promise<void> {
 
   // ── Raw materials (10) ───────────────────────────────────────────────────────
   const rmDefs: Array<{ name: string; unit: string; cat: string; cost: number; stock: number; reorder: number; supplier: string }> = [
-    { name: 'Potato', unit: 'Kg', cat: 'Vegetables', cost: 25, stock: 500, reorder: 100, supplier: 'APMC Surat' },
+    { name: 'Potato', unit: 'Kg', cat: 'Vegetables', cost: 25, stock: 500, reorder: 100, supplier: 'APMC Vashi' },
     { name: 'Gram Flour (Besan)', unit: 'Kg', cat: 'Flour & Grains', cost: 80, stock: 300, reorder: 80, supplier: 'Shree Flour Mills' },
     { name: 'Wheat Flour', unit: 'Kg', cat: 'Flour & Grains', cost: 40, stock: 400, reorder: 100, supplier: 'Shree Flour Mills' },
     { name: 'Refined Oil', unit: 'Litre', cat: 'Oils & Dairy', cost: 130, stock: 250, reorder: 60, supplier: 'Gokul Oils' },
@@ -365,10 +365,10 @@ async function main(): Promise<void> {
   await prisma.$executeRawUnsafe('SELECT refresh_analytics_views()');
 
   console.log('✅ Seed complete.');
-  console.log('   Super Admin → admin@suratfood.com / Admin@123  (or user ID ADMIN001)');
-  console.log('   Godown Mgr  → godown@suratfood.com / Godown@123 (GODOWN001)');
-  console.log('   Owner       → owner.adajan@suratfood.com / Owner@123 (OWNER001)');
-  console.log('   Cashier     → cashier.adajan@suratfood.com / Cashier@123 (CASH001)');
+  console.log('   Super Admin → admin@mumbaierp.local / Admin@123  (or user ID ADMIN001)');
+  console.log('   Godown Mgr  → godown@mumbaierp.local / Godown@123 (GODOWN001)');
+  console.log('   Owner       → owner.adajan@mumbaierp.local / Owner@123 (OWNER001)');
+  console.log('   Cashier     → cashier.adajan@mumbaierp.local / Cashier@123 (CASH001)');
 }
 
 main()

@@ -1,21 +1,31 @@
-# Surat Food Chain — local development infrastructure.
+# Mumbai ERP — local development infrastructure.
 # Postgres 15 only. No Redis: pub/sub is PostgreSQL LISTEN/NOTIFY, the job
 # queue is pg-boss, and API/KPI caching is in-process node-cache.
+#
+# ISOLATION: this stack is deliberately kept separate from every other project
+# on this machine — its own compose project name, container name, named volume
+# and host port. It must never share a database instance with the original
+# "Surat Food Chain / Ganesh Aloopuri" project (that one runs container
+# `scfc_postgres` on host port 5432, volume `scfc_pgdata`, database
+# `surat_food_chain` — do not touch it).
+name: mumbai-erp
+
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: scfc_postgres
+    container_name: mumbai_erp_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-surat}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-surat_dev_pwd}
-      POSTGRES_DB: ${POSTGRES_DB:-surat_food_chain}
+      POSTGRES_USER: ${POSTGRES_USER:-mumbai_erp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mumbai_erp_dev_pwd}
+      POSTGRES_DB: ${POSTGRES_DB:-mumbai_erp}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Host port 5434 — 5432 belongs to the original project, 5433 to paysetu.
+      - "${POSTGRES_PORT:-5434}:5432"
     volumes:
-      - scfc_pgdata:/var/lib/postgresql/data
+      - mumbai_erp_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-surat} -d ${POSTGRES_DB:-surat_food_chain}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mumbai_erp} -d ${POSTGRES_DB:-mumbai_erp}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -26,5 +36,5 @@ services:
       - "max_connections=200"
 
 volumes:
-  scfc_pgdata:
-    name: scfc_pgdata
+  mumbai_erp_pgdata:
+    name: mumbai_erp_pgdata

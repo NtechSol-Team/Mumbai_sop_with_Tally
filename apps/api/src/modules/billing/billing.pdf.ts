@@ -11,7 +11,7 @@ export type BillWithRelations = Prisma.BillGetPayload<{
 
 /**
  * Resolve a file under apps/api/assets. The API's working directory differs between
- * dev (`npm run dev -w @scfc/api` → apps/api) and production (PM2 starts dist/server.js
+ * dev (`npm run dev -w @mumbai-erp/api` → apps/api) and production (PM2 starts dist/server.js
  * from the repo root), so a single cwd-relative path silently misses in one of them —
  * which is why the letterhead logo never appeared on production invoices.
  */

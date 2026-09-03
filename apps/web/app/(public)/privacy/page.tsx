@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Privacy Policy — Shree Ganesh Aloopuri' };
+export const metadata: Metadata = { title: 'Privacy Policy — Mumbai ERP' };
 
 export default function PrivacyPage() {
   return (
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
         <h2 className="text-label font-semibold">5. Your rights &amp; contact</h2>
         <p>
           Franchise partners may ask us to correct or update their account information at any time through
-          their relationship contact at the main branch in Surat, or via the contact details printed on their
+          their relationship contact at the main branch in Mumbai, or via the contact details printed on their
           invoice.
         </p>
       </section>

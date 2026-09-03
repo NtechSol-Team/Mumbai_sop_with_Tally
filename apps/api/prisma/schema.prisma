@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Surat Food Chain — Prisma schema
+// Mumbai ERP — Prisma schema
 //
 // Conventions (applied to every domain table):
 //   • id            UUID PK, DB-generated via gen_random_uuid()

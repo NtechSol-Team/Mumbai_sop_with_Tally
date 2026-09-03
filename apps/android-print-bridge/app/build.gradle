@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace 'com.scfc.printbridge'
+    namespace 'com.mumbaierp.printbridge'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.scfc.printbridge"
+        applicationId "com.mumbaierp.printbridge"
         // minSdk 26 (Android 8.0): lets us ship XML-only adaptive icons and
         // covers every POS tablet in the field. The vendor SDK targets much older.
         minSdk 26

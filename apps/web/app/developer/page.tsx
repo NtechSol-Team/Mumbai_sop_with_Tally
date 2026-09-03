@@ -215,7 +215,7 @@ const MY_SHARE_PCT = 100 - PARTNER_SHARE_PCT;
  * and the developer absorbs all costs from their own share. Display-only, so
  * flipping it never rewrites anything stored — kept per-device in localStorage.
  */
-const SPLIT_BASIS_KEY = 'scfc-dev-split-after-expenses';
+const SPLIT_BASIS_KEY = 'mumbai-erp-dev-split-after-expenses';
 
 function splitFor(collected: number, expenses: number, afterExpenses: boolean) {
   const profit = collected - expenses;

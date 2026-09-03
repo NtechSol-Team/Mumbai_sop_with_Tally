@@ -85,7 +85,7 @@ export function OutletDetailsDialog({ outlet, onClose }: { outlet: Outlet | null
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label>Address</Label>
-            <Input value={form.address} onChange={set('address')} placeholder="Shop 4, Ring Road, Adajan, Surat 395009" />
+            <Input value={form.address} onChange={set('address')} placeholder="Shop 4, Linking Road, Bandra West, Mumbai 400050" />
           </div>
           <div className="space-y-1.5">
             <Label>Phone</Label>

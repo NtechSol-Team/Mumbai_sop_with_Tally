@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Terms & Conditions — Shree Ganesh Aloopuri' };
+export const metadata: Metadata = { title: 'Terms & Conditions — Mumbai ERP' };
 
 export default function TermsPage() {
   return (
@@ -11,8 +11,8 @@ export default function TermsPage() {
       <section className="space-y-2">
         <h2 className="text-label font-semibold">1. About this platform</h2>
         <p>
-          Shree Ganesh Aloopuri (&ldquo;Surat Food Chain&rdquo;, &ldquo;we&rdquo;) is a food manufacturing and
-          franchise business based in Surat, Gujarat, India. This website is our private business-management
+          Mumbai ERP (&ldquo;we&rdquo;) is a food manufacturing and
+          franchise business based in Mumbai, Maharashtra, India. This website is our private business-management
           portal: registered franchise outlets use it to order stock from our main branch, receive invoices,
           and pay for those orders. It is not a consumer shopping website; access requires an account issued
           by us to franchise partners and staff.
@@ -53,14 +53,14 @@ export default function TermsPage() {
         <h2 className="text-label font-semibold">5. Support &amp; grievances</h2>
         <p>
           Registered franchise partners can reach us for any order, payment, or invoice query through their
-          relationship contact at the main branch in Surat, or through the contact details printed on their
+          relationship contact at the main branch in Mumbai, or through the contact details printed on their
           invoice. We aim to resolve payment-related queries within 7 working days.
         </p>
       </section>
 
       <section className="space-y-2">
         <h2 className="text-label font-semibold">6. Governing law</h2>
-        <p>These terms are governed by the laws of India, with courts in Surat, Gujarat having jurisdiction.</p>
+        <p>These terms are governed by the laws of India, with courts in Mumbai, Maharashtra having jurisdiction.</p>
       </section>
     </article>
   );

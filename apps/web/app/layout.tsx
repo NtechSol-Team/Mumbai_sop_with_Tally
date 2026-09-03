@@ -6,7 +6,7 @@ import { Providers } from './providers';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: 'Surat Food Chain',
+  title: 'Mumbai ERP',
   description: 'Food manufacturing & franchise management system',
 };
 

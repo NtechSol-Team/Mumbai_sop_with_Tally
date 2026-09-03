@@ -1,4 +1,4 @@
-package com.scfc.printbridge
+package com.mumbaierp.printbridge
 
 import android.Manifest
 import android.app.Activity
@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit
  *
  * Protocol (mirrored by apps/web/lib/print/android-bridge.ts):
  *   JS calls  AndroidPrinter.request(id, method, paramsJson)   — returns immediately
- *   we reply  window.__scfcPrinterBridgeResolve(id, resultJson) on the UI thread,
+ *   we reply  window.__mumbaiErpPrinterBridgeResolve(id, resultJson) on the UI thread,
  *   where resultJson is {"ok":true,"data":…} or {"ok":false,"error":"…"}.
  *
  * All printer I/O runs on a single background executor: the vendor SDK keeps
@@ -37,8 +37,8 @@ import java.util.concurrent.TimeUnit
 class PrinterBridge(private val activity: Activity, private val webView: WebView) {
 
     companion object {
-        private const val TAG = "SCFCPrinterBridge"
-        private const val PREFS = "scfc_print_bridge"
+        private const val TAG = "MumbaiErpPrinterBridge"
+        private const val PREFS = "mumbai_erp_print_bridge"
         private const val KEY_MAC = "printer_mac"
         private const val KEY_NAME = "printer_name"
         private const val CONNECT_ATTEMPTS = 2
@@ -112,7 +112,7 @@ class PrinterBridge(private val activity: Activity, private val webView: WebView
         latch.await(60, TimeUnit.SECONDS)
         permissionLatch = null
         if (!permissionGranted) {
-            throw IllegalStateException("Bluetooth permission denied — allow \"Nearby devices\" for SCFC Print Bridge in Android settings")
+            throw IllegalStateException("Bluetooth permission denied — allow \"Nearby devices\" for Mumbai ERP Print Bridge in Android settings")
         }
     }
 
@@ -274,7 +274,7 @@ class PrinterBridge(private val activity: Activity, private val webView: WebView
     private fun err(message: String): JSONObject = JSONObject().put("ok", false).put("error", message)
 
     private fun deliver(id: String, result: JSONObject) {
-        val js = "window.__scfcPrinterBridgeResolve && window.__scfcPrinterBridgeResolve(" +
+        val js = "window.__mumbaiErpPrinterBridgeResolve && window.__mumbaiErpPrinterBridgeResolve(" +
             "${JSONObject.quote(id)}, ${JSONObject.quote(result.toString())})"
         activity.runOnUiThread { webView.evaluateJavascript(js, null) }
     }

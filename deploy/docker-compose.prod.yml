@@ -6,20 +6,20 @@
 # Configuration comes from deploy/.env (copy .env.example → .env and fill in).
 # Caddy is the only thing exposed; it serves the web app at / and routes
 # /api/* + /socket.io/* (websockets) to the API — one public origin, no CORS pain.
-name: scfc
+name: mumbai-erp
 
 services:
   postgres:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: surat_food_chain
-      POSTGRES_USER: surat
+      POSTGRES_DB: mumbai_erp
+      POSTGRES_USER: mumbai_erp
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U surat -d surat_food_chain"]
+      test: ["CMD-SHELL", "pg_isready -U mumbai_erp -d mumbai_erp"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -35,11 +35,11 @@ services:
     environment:
       NODE_ENV: production
       API_PORT: 4000
-      DATABASE_URL: postgresql://surat:${POSTGRES_PASSWORD}@postgres:5432/surat_food_chain
+      DATABASE_URL: postgresql://mumbai_erp:${POSTGRES_PASSWORD}@postgres:5432/mumbai_erp
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in deploy/.env}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in deploy/.env}
       WEB_ORIGIN: ${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN in deploy/.env}
-      HOME_STATE_CODE: ${HOME_STATE_CODE:-24}
+      HOME_STATE_CODE: ${HOME_STATE_CODE:-27}
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-rzp_test_placeholder}
       RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-placeholder_secret}
       RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-placeholder_webhook_secret}

@@ -214,7 +214,7 @@ export class WebBluetoothPrinter {
       this.characteristic = null;
       this.connectedAt = 0;
       throw new Error(
-        'No writable printer service found — this printer does not expose BLE printing. Use the SCFC Print Bridge app instead.',
+        'No writable printer service found — this printer does not expose BLE printing. Use the Mumbai ERP Print Bridge app instead.',
       );
     }
     if (candidates.length > 1) {

@@ -36,7 +36,10 @@ const envSchema = z.object({
   RAZORPAY_WEBHOOK_SECRET: z.string().default('placeholder_webhook_secret'),
 
   // GST: home state for CGST/SGST vs IGST, and GSTzen GSTIN-lookup provider.
-  HOME_STATE_CODE: z.string().default('24'), // Gujarat
+  // 27 = Maharashtra (Mumbai). CONFIRM against the client's GST registration
+  // certificate before go-live — the registered state, not the office city,
+  // decides the CGST+SGST vs IGST split on every voucher pushed to Tally.
+  HOME_STATE_CODE: z.string().default('27'), // Maharashtra
   GSTZEN_API_KEY: z.string().default(''),
   GSTZEN_API_URL: z.string().default('https://my.gstzen.in/api/gstin-validator/'),
 
@@ -75,21 +78,22 @@ const envSchema = z.object({
 
   // Company letterhead details for invoice PDFs. GSTIN blank by default — only
   // printed on GST invoices once the business's actual registered GSTIN is set.
-  COMPANY_NAME: z.string().default('Shree Ganesh Aloopuri'),
-  COMPANY_TAGLINE: z.string().default('Surat Food Chain'),
+  // These placeholders MUST be replaced with the Mumbai ERP client's registered
+  // legal entity details (name exactly as on the GST certificate) before any
+  // real invoice is issued.
+  COMPANY_NAME: z.string().default('Mumbai ERP'),
+  COMPANY_TAGLINE: z.string().default('Mumbai ERP'),
   COMPANY_ADDRESS: z.string().default(''),
   COMPANY_PHONE: z.string().default(''),
   COMPANY_GSTIN: z.string().default(''),
   // Terms & Conditions printed at the foot of every sales invoice — pipe-separated,
-  // one term per segment, numbered automatically. Best-effort default transcribed from
-  // the shop's paper order form; VERIFY THE WORDING (money amounts especially) before
+  // one term per segment, numbered automatically. Placeholder wording — replace
+  // with the Mumbai ERP client's actual terms (money amounts especially) before
   // relying on it, then override via env instead of editing code.
   COMPANY_TERMS: z.string().default(
     'Orders must be placed at least 2 days in advance with advance payment.'
-    + '|If payment is not completed on time, 5% GST will be added to the bill.'
     + '|Any changes to the order must be informed in advance.'
-    + '|For pickup after 10 PM, please inform in advance — staff may not be available to verify/hand over material after that time.'
-    + '|Cancelling a confirmed order will incur a 10% cancellation charge.',
+    + '|Cancelling a confirmed order will incur a cancellation charge.',
   ),
 
   // Passphrase that unlocks the hidden developer window (outlet management).

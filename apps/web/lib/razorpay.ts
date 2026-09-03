@@ -72,7 +72,7 @@ export async function openRazorpayCheckout(opts: {
     amount: opts.order.amount,
     currency: opts.order.currency,
     order_id: opts.order.orderId,
-    name: 'Surat Food Chain',
+    name: 'Mumbai ERP',
     description: opts.description ?? 'Bill payment',
     prefill: {
       name: opts.customerName,

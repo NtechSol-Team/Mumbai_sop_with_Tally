@@ -50,9 +50,9 @@ export default function LoginPage() {
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Store className="h-6 w-6" />
           </div>
-          <h1 className="text-page-heading font-bold">Shree Ganesh Aloopuri</h1>
+          <h1 className="text-page-heading font-bold">Mumbai ERP</h1>
           <p className="text-body text-muted-foreground">
-            AlooBari.com — franchise ordering &amp; billing portal. Sign in to your partner account.
+            Franchise ordering &amp; billing portal. Sign in to your partner account.
           </p>
         </CardHeader>
         <CardContent>
@@ -63,7 +63,7 @@ export default function LoginPage() {
               </Label>
               <Input
                 id="identifier"
-                placeholder="admin@suratfood.com or ADMIN001"
+                placeholder="admin@mumbaierp.local or ADMIN001"
                 autoComplete="username"
                 aria-invalid={!!errors.identifier}
                 {...register('identifier')}
@@ -102,7 +102,7 @@ export default function LoginPage() {
       </Card>
 
       <p className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-caption text-muted-foreground">
-        <span>© {new Date().getFullYear()} Shree Ganesh Aloopuri · Surat, Gujarat</span>
+        <span>© {new Date().getFullYear()} Mumbai ERP · Mumbai, Maharashtra</span>
         <a href="/terms" className="hover:text-foreground hover:underline">Terms</a>
         <a href="/privacy" className="hover:text-foreground hover:underline">Privacy</a>
         <a href="/refunds" className="hover:text-foreground hover:underline">Refunds</a>

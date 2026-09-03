@@ -41,7 +41,7 @@ export interface RealtimeMessage<T = unknown> {
 }
 
 /** The single Postgres NOTIFY channel all app events flow through. */
-export const PG_NOTIFY_CHANNEL = 'scfc_events';
+export const PG_NOTIFY_CHANNEL = 'mumbai_erp_events';
 
 /** Socket.IO room names. */
 export const Room = {

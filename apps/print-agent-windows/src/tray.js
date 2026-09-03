@@ -20,7 +20,7 @@ let rebuildSeq = 0; // guards against a slow (PowerShell-backed) listPrinters() 
 
 function build(handlers) {
   tray = new Tray(nativeImage.createFromPath(ICON_PATH));
-  tray.setToolTip('Surat Food Chain Print Agent');
+  tray.setToolTip('Mumbai ERP Print Agent');
   rebuild(handlers);
   return tray;
 }
@@ -53,7 +53,7 @@ async function rebuild(handlers) {
     { label: 'Exit', click: handlers.onQuit },
   ]);
   tray.setContextMenu(menu);
-  tray.setToolTip(`Surat Food Chain Print Agent — ${STATUS_LABEL[currentStatus] || currentStatus}`);
+  tray.setToolTip(`Mumbai ERP Print Agent — ${STATUS_LABEL[currentStatus] || currentStatus}`);
 }
 
 function setStatus(status, handlers) {

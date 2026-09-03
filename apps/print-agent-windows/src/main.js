@@ -148,7 +148,7 @@ async function setupAutoLaunch() {
   // running unpackaged (`npm start`) skips this rather than registering a
   // dev-tree path that won't exist after the next `npm install`.
   if (process.platform !== 'win32' || !app.isPackaged) return;
-  const autoLaunch = new AutoLaunch({ name: 'Surat Food Chain Print Agent', path: app.getPath('exe') });
+  const autoLaunch = new AutoLaunch({ name: 'Mumbai ERP Print Agent', path: app.getPath('exe') });
   try {
     const enabled = await autoLaunch.isEnabled();
     if (!enabled) await autoLaunch.enable();

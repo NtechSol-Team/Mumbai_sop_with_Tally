@@ -122,7 +122,7 @@ async function sendToWindowsQueue(buffer, printerName) {
   if (process.platform !== 'win32') {
     throw new Error('USB/Bluetooth printing goes through the Windows print spooler and only works on Windows.');
   }
-  const tempFile = path.join(os.tmpdir(), `scfc-print-${crypto.randomUUID()}.bin`);
+  const tempFile = path.join(os.tmpdir(), `mumbai-erp-print-${crypto.randomUUID()}.bin`);
   fs.writeFileSync(tempFile, buffer);
   try {
     await runPowerShell(['-File', resourcePath('RawPrint.ps1'), '-PrinterName', printerName, '-FilePath', tempFile]);

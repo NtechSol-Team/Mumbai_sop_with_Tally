@@ -11,7 +11,7 @@ import type { CreateTxnPayload } from '@/hooks/usePos';
  * Uses localStorage for durability + simplicity; the clientUuid idempotency key
  * is what actually guarantees no double-charges on sync.
  */
-const KEY = 'scfc-pos-offline-queue';
+const KEY = 'mumbai-erp-pos-offline-queue';
 
 export function getQueue(): CreateTxnPayload[] {
   if (typeof window === 'undefined') return [];

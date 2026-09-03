@@ -26,7 +26,7 @@ export const useAuthStore = create<AuthState>()(
       clear: () => set({ user: null, accessToken: null, refreshToken: null }),
     }),
     {
-      name: 'scfc-auth',
+      name: 'mumbai-erp-auth',
       onRehydrateStorage: () => (state) => {
         if (state) state.hydrated = true;
       },
@@ -49,6 +49,6 @@ export const authSnapshot = {
 // (see auth.service.ts) is sized to tolerate, rather than minutes of drift.
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
-    if (e.key === 'scfc-auth') useAuthStore.persist.rehydrate();
+    if (e.key === 'mumbai-erp-auth') useAuthStore.persist.rehydrate();
   });
 }

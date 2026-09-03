@@ -1,12 +1,17 @@
-# Surat Food Chain — Management System
+# Mumbai ERP — Management System
 
 Full-stack food manufacturing + franchise management: production (godown), inventory,
 inter-branch transfers, franchise stock ordering, billing, payments (Razorpay + cash),
-expenses, POS (with offline), and analytics.
+expenses, POS (with offline), analytics, and one-way accounting sync to **Tally Prime**.
 
 > **Stack:** Next.js 14 · TypeScript · Tailwind · shadcn/ui · Zustand · React Query ·
 > Express · Prisma · PostgreSQL 15 · Socket.IO (PG LISTEN/NOTIFY) · pg-boss · node-cache ·
 > JWT · Razorpay · PDFKit. **No Redis** — Postgres is the only infrastructure dependency.
+
+> **This project is a fresh clone** of an earlier system, re-provisioned for a new
+> client (Mumbai, Maharashtra). It runs on its **own isolated database** — Docker
+> container `mumbai_erp_postgres`, host port **5434**, database `mumbai_erp`. It must
+> never connect to the original project's database (`surat_food_chain`, port 5432).
 
 ---
 
@@ -14,18 +19,14 @@ expenses, POS (with offline), and analytics.
 
 ```
 /                            npm workspaces root
-├── apps/api                 Express + Prisma backend  (@scfc/api)
-├── apps/web                 Next.js 14 frontend       (@scfc/web)   ← built next
+├── apps/api                 Express + Prisma backend  (@mumbai-erp/api)
+├── apps/web                 Next.js 14 frontend       (@mumbai-erp/web)
 ├── apps/android-print-bridge  Android WebView wrapper — Bluetooth ESC/POS
 │                            receipt printing on tablets (see its README)
-├── docker-compose.yml       Postgres 15 only
+├── apps/print-agent-windows  Windows tray app — local ESC/POS printing
+├── docker-compose.yml       Postgres 15 only (isolated stack: port 5434)
 └── .env                     single source of truth (gitignored)
 ```
-
-> **Printing:** Windows tills keep using the browser print dialog. Android tablets
-> print receipts over Bluetooth — either through the Print Bridge app
-> (`apps/android-print-bridge`, works with every ESC/POS printer) or Web Bluetooth
-> for BLE-capable printers. Configure per till in **POS → printer icon**.
 
 ---
 
@@ -42,21 +43,23 @@ expenses, POS (with offline), and analytics.
 # 1. Install all workspace dependencies
 npm install
 
-# 2. Copy env template and review values (real .env already present for local dev)
-cp .env.example .env        # skip if you already have .env
+# 2. Copy env template and fill values
+cp .env.example .env
 
-# 3. Start Postgres
+# 3. Start Postgres (isolated container mumbai_erp_postgres on port 5434)
 npm run db:up
 
-# 4. Apply migrations (schema + audit triggers + materialized views)
-npm run prisma:migrate      # or: npm run -w @scfc/api prisma:deploy
+# 4. SAFETY CHECK — confirm DATABASE_URL points at port 5434 / mumbai_erp
+grep DATABASE_URL .env
 
-# 5. Seed realistic sample data
+# 5. Apply migrations (schema + audit triggers + materialized views)
+npm run prisma:migrate      # or: npm run -w @mumbai-erp/api prisma:deploy
+
+# 6. Seed realistic sample data
 npm run db:seed
 
-# 6. Run the API (and web, once built)
-npm run api:dev             # API at http://localhost:4000
-# npm run dev               # API + web together (after web is scaffolded)
+# 7. Run API + web
+npm run dev                  # API at http://localhost:4100, web at http://localhost:3100
 ```
 
 One-shot bootstrap: `npm run bootstrap` (install → db:up → migrate → seed).
@@ -65,14 +68,15 @@ One-shot bootstrap: `npm run bootstrap` (install → db:up → migrate → seed)
 
 ## Seed login credentials
 
-| Role          | Email / User ID                              | Password      |
-|---------------|----------------------------------------------|---------------|
-| Super Admin   | `admin@suratfood.com` · `ADMIN001`           | `Admin@123`   |
-| Godown Manager| `godown@suratfood.com` · `GODOWN001`         | `Godown@123`  |
-| Franchise Owner| `owner.adajan@suratfood.com` · `OWNER001`   | `Owner@123`   |
-| Cashier       | `cashier.adajan@suratfood.com` · `CASH001`   | `Cashier@123` |
+| Role           | Email / User ID                                | Password      |
+|----------------|------------------------------------------------|---------------|
+| Super Admin    | `admin@mumbaierp.local` · `ADMIN001`            | `Admin@123`   |
+| Godown Manager | `godown@mumbaierp.local` · `GODOWN001`          | `Godown@123`  |
+| Franchise Owner| `owner.adajan@mumbaierp.local` · `OWNER001`     | `Owner@123`   |
+| Cashier        | `cashier.adajan@mumbaierp.local` · `CASH001`    | `Cashier@123` |
 
 Login accepts **either** the email **or** the user ID in a single field.
+Change every seeded password before any real use.
 
 ---
 
@@ -84,8 +88,9 @@ invalid config. See [.env.example](.env.example) for the full list. Key ones:
 
 | Variable | Purpose |
 |----------|---------|
-| `DATABASE_URL` | Postgres connection string |
+| `DATABASE_URL` | Postgres connection string — **must be port 5434 / mumbai_erp** |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | token signing (access 15m, refresh 30d) |
+| `HOME_STATE_CODE` | GST home state — `27` (Maharashtra); confirm vs client GST cert |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` | payments |
 | `WEB_ORIGIN` | CORS + Socket.IO origin |
 | `KPI_CACHE_TTL_SECONDS` | node-cache TTL for dashboard KPIs |
@@ -95,28 +100,12 @@ invalid config. See [.env.example](.env.example) for the full list. Key ones:
 
 ## API conventions
 
-- **Base URL:** `http://localhost:4000/api/v1`
+- **Base URL:** `http://localhost:4100/api/v1`
 - **Success envelope:** `{ success: true, data, message, meta? }`
 - **Error envelope:** `{ success: false, error: { code, message, field? } }`
 - **Auth:** `Authorization: Bearer <accessToken>`; rotate via `POST /auth/refresh`.
 - **Pagination:** `?page=&limit=` (default 25, max 100); `meta` carries totals.
 - **Rate limits:** auth endpoints 5/min, write endpoints 30/min per IP.
-
-### API surface (all under `/api/v1`)
-
-| Group | Key routes | Notes |
-|-------|-----------|-------|
-| `/auth` | login (email/user ID), refresh (rotation + reuse detection), logout, me, sessions | |
-| `/users` | CRUD + reset-password | super admin |
-| `/categories`, `/products`, `/raw-materials` | catalog CRUD, `/products/:id/bom`, `/products/:id/photo` | trigram search; stock ledgers auto-created |
-| `/production` | `batches` (BOM auto-deduct), `intake` (weighted-avg cost), `godown-stock` | godown + admin |
-| `/transfers` | create + `:id/status` (Draft→Dispatched→Received) | moves godown→main on receive |
-| `/orders` | create + `:id/{confirm,dispatch,deliver,cancel}` | dispatch auto-bills; deliver moves main→outlet; realtime |
-| `/billing` | list (filters/sort/overdue), `:id`, `:id/pdf` | outlet-scoped; async PDF |
-| `/payments` | `cash`, `razorpay/order`, `razorpay/verify`, `webhook`, `summary` | insert-only; aging report |
-| `/expenses` | CRUD, `categories`, `summary` | by category/location |
-| `/pos` | `sessions[/current,/:id/close,/:id/summary]`, `transactions[,/:id/void]`, `products` | offline-idempotent on `clientUuid` |
-| `/analytics` | `dashboard`, `sales/trend`, `sales/top-products`, `financial`, `outlets`, `inventory` | KPIs cached; P&L from matview |
 
 ---
 
@@ -125,8 +114,7 @@ invalid config. See [.env.example](.env.example) for the full list. Key ones:
 - UUID PKs (`gen_random_uuid()`), `created_at`/`updated_at`, soft delete (`is_deleted`),
   `created_by` on every domain table. **No hard deletes** in this financial system.
 - Money as `DECIMAL(12,2)`; tax rate `DECIMAL(5,2)`; fractional quantities `DECIMAL(12,4)`.
-- Composite indexes on hot paths (`outlet_id+status`, `status+due_date`, …) and
-  **trigram GIN** indexes for fuzzy product/SKU search (`pg_trgm`).
+- Composite indexes on hot paths and **trigram GIN** indexes for fuzzy search (`pg_trgm`).
 - **Shadow audit tables** for bills, payments, stock transfers, production batches —
   populated by DB triggers (`fn_record_audit`). The acting user is read from the
   transaction-local GUC `app.user_id`.
@@ -137,10 +125,10 @@ invalid config. See [.env.example](.env.example) for the full list. Key ones:
 ### Migrations
 
 ```bash
-npm run -w @scfc/api prisma:migrate   # dev: create + apply
-npm run -w @scfc/api prisma:deploy    # prod: apply pending
-npm run -w @scfc/api prisma:reset     # drop + re-migrate + re-seed (dev only)
-npm run -w @scfc/api prisma:studio    # browse data
+npm run -w @mumbai-erp/api prisma:migrate   # dev: create + apply
+npm run -w @mumbai-erp/api prisma:deploy    # prod: apply pending
+npm run -w @mumbai-erp/api prisma:reset     # drop + re-migrate + re-seed (dev only)
+npm run -w @mumbai-erp/api prisma:studio    # browse data
 ```
 
 Advanced objects (triggers, materialized views, refresh function) live in
@@ -150,34 +138,17 @@ Advanced objects (triggers, materialized views, refresh function) live in
 
 ## Real-time + background jobs (no Redis)
 
-- **Real-time:** app writes call `pg_notify('scfc_events', …)`; a dedicated pg client
-  `LISTEN`s and relays to Socket.IO rooms (`role:admin`, `outlet:<id>`). Events:
-  `new_order`, `order_status_changed`, `payment_received`, `stock_low`, `bill_generated`,
-  `transfer_status_changed`, `pos_sale`, `report_ready`.
+- **Real-time:** app writes call `pg_notify('mumbai_erp_events', …)`; a dedicated pg client
+  `LISTEN`s and relays to Socket.IO rooms (`role:admin`, `outlet:<id>`).
 - **Jobs:** pg-boss runs the analytics refresh schedule and async bill-PDF generation.
 
 ---
 
-## Build status — feature-complete
+## Tally Prime accounting sync
 
-All modules are implemented (API + UI) and exercised against the running stack:
-
-1. ✅ **Auth & Users** — login by email/user ID, refresh rotation + reuse detection, PG sessions, RBAC
-2. ✅ **Products & Raw Materials** — catalog, pricing, photo upload, BOM, trigram search
-3. ✅ **Production** — batch logging with BOM auto-deduction, intake (weighted-avg cost), godown stock
-4. ✅ **Stock Transfers** — Draft→Dispatched→Received state machine, godown→main movement
-5. ✅ **Outlet Orders** — franchise ordering, confirm/dispatch/deliver, realtime, deliver moves main→outlet
-6. ✅ **Billing** — auto-generated on dispatch, immutable locked line items, async PDF, overdue flagging
-7. ✅ **Payments** — Razorpay (live test order + signature verify + webhook) and cash (partial), aging dashboard
-8. ✅ **Expenses** — entry by category/location, category & monthly summaries
-9. ✅ **POS** — full-screen 3-panel, cash/card/UPI/split, hold, void+restock, EOD, offline queue (idempotent sync)
-10. ✅ **Analytics** — dashboard KPIs, revenue trend, top products, outlet performance, inventory, monthly P&L
-
-Verified behaviours include: BOM deduction & weighted-average costing, transfer/order state machines with
-stock movement, auto-billing on dispatch + background PDF, payment reconciliation with over-pay guards and
-DB audit triggers, POS stock decrement + offline idempotency, and role scoping (e.g. a franchise owner sees
-only their own outlet). The Next.js app builds cleanly for production (17 routes).
-
-> **Notes / future polish:** POS offline persistence uses a `localStorage` queue keyed by an idempotent
-> `clientUuid` (a service worker for full asset-level offline is a future add). Materialized-view-backed
-> analytics (P&L, outlet totals) refresh every 15 min via pg-boss, so they are eventually consistent.
+One-way push only — data flows **from this ERP into Tally Prime**, never the reverse.
+Sales, receipts, GST-registered purchases, expense payments and stock journals are
+pushed as correctly structured double-entry vouchers via a local sync agent that runs
+on the client's Tally machine. Non-GST purchases are recorded in the ERP only and are
+**never** synced to the statutory books. See the project docs for the accounting
+mapping, architecture and reliability design.

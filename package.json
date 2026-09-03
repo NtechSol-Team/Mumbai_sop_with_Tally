@@ -1,8 +1,8 @@
 {
-  "name": "surat-food-chain",
+  "name": "mumbai-erp",
   "version": "0.1.0",
   "private": true,
-  "description": "Surat Food Chain Management System \u2014 production, inventory, transfers, franchise ordering, billing, payments, expenses, POS and analytics.",
+  "description": "Mumbai ERP — food manufacturing & franchise management: production, inventory, transfers, franchise ordering, billing, payments, expenses, POS, analytics, and Tally Prime accounting sync.",
   "workspaces": [
     "apps/*",
     "!apps/print-agent-windows"
@@ -15,13 +15,13 @@
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres",
-    "api:dev": "npm run dev --workspace @scfc/api",
-    "api:build": "npm run build --workspace @scfc/api",
-    "web:dev": "npm run dev --workspace @scfc/web",
-    "web:build": "npm run build --workspace @scfc/web",
-    "prisma:generate": "npm run prisma:generate --workspace @scfc/api",
-    "prisma:migrate": "npm run prisma:migrate --workspace @scfc/api",
-    "db:seed": "npm run db:seed --workspace @scfc/api",
+    "api:dev": "npm run dev --workspace @mumbai-erp/api",
+    "api:build": "npm run build --workspace @mumbai-erp/api",
+    "web:dev": "npm run dev --workspace @mumbai-erp/web",
+    "web:build": "npm run build --workspace @mumbai-erp/web",
+    "prisma:generate": "npm run prisma:generate --workspace @mumbai-erp/api",
+    "prisma:migrate": "npm run prisma:migrate --workspace @mumbai-erp/api",
+    "db:seed": "npm run db:seed --workspace @mumbai-erp/api",
     "dev": "npm run db:up && concurrently -n api,web -c blue,magenta \"npm run api:dev\" \"npm run web:dev\"",
     "bootstrap": "npm install && npm run db:up && npm run prisma:migrate && npm run db:seed",
     "postinstall": "patch-package"

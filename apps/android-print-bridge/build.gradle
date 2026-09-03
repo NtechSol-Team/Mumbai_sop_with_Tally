@@ -1,4 +1,4 @@
-// SCFC Print Bridge — Android WebView wrapper that gives the SCFC web app
+// Mumbai ERP Print Bridge — Android WebView wrapper that gives the Mumbai ERP web app
 // Bluetooth ESC/POS printing via the vendor SDK (see app/libs).
 plugins {
     id 'com.android.application' version '8.5.2' apply false

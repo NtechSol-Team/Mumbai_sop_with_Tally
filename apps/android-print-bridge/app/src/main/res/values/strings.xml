@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Shree Ganesh Aloopuri</string>
-    <string name="url_dialog_title">SCFC server address</string>
-    <string name="url_dialog_message">Enter the web address of your SCFC app (the same one you open in Chrome).</string>
+    <string name="app_name">Mumbai ERP</string>
+    <string name="url_dialog_title">Mumbai ERP server address</string>
+    <string name="url_dialog_message">Enter the web address of your Mumbai ERP app (the same one you open in Chrome).</string>
     <string name="url_dialog_save">Save &amp; open</string>
-    <string name="exit_dialog_title">Shree Ganesh Aloopuri</string>
+    <string name="exit_dialog_title">Mumbai ERP</string>
     <string name="exit_dialog_reload">Reload page</string>
     <string name="exit_dialog_change_url">Change server address</string>
     <string name="exit_dialog_exit">Exit app</string>

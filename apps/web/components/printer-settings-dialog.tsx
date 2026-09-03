@@ -22,7 +22,7 @@ import { printOpenDrawer } from '@/lib/print';
 /**
  * Receipt-printer setup for this till. Windows tills can ignore it (system
  * dialog remains the default there); Android tablets use it to connect the
- * Bluetooth printer — through the SCFC Print Bridge app when installed, or
+ * Bluetooth printer — through the Mumbai ERP Print Bridge app when installed, or
  * Web Bluetooth for BLE-capable printers in plain Chrome.
  */
 export function PrinterSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -224,7 +224,7 @@ export function PrinterSettingsDialog({ open, onOpenChange }: { open: boolean; o
             <p className="text-label font-semibold">Web Bluetooth printer</p>
             <p className="text-caption text-muted-foreground">
               Works with BLE-capable printers straight from Chrome. If your printer never shows up
-              or won't print, install the SCFC Print Bridge app — it supports every Bluetooth printer.
+              or won't print, install the Mumbai ERP Print Bridge app — it supports every Bluetooth printer.
             </p>
             {settings.webBtName && (
               <p className="text-caption">

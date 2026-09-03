@@ -60,7 +60,7 @@ function Brand({ collapsed }: { collapsed: boolean }) {
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
         <Store className="h-4 w-4" />
       </div>
-      {!collapsed && <span className="truncate font-semibold">Surat Food</span>}
+      {!collapsed && <span className="truncate font-semibold">Mumbai ERP</span>}
     </div>
   );
 }
@@ -120,7 +120,7 @@ export function Sidebar() {
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
                 <Store className="h-4 w-4" />
               </div>
-              <span className="truncate font-semibold">Surat Food</span>
+              <span className="truncate font-semibold">Mumbai ERP</span>
             </div>
             <button type="button" onClick={closeMobileNav} className="rounded-md p-1.5 text-muted-foreground hover:bg-surface" aria-label="Close menu">
               <X className="h-5 w-5" />

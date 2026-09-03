@@ -1,4 +1,4 @@
-# Surat Food Chain — Print Agent (Windows)
+# Mumbai ERP — Print Agent (Windows)
 
 A local Windows tray app that listens for order events over Socket.IO and
 prints ESC/POS receipts on a USB, Bluetooth, or LAN thermal printer, without
@@ -92,7 +92,7 @@ npm start
 
 First run with no server configured opens the Settings window automatically.
 Enter the server URL (the same origin the web dashboard talks to, e.g.
-`https://api.shreeganeshaloopuri.avoilprime.com`), sign in with a Super Admin
+`https://api.your-mumbai-erp-domain.com`), sign in with a Super Admin
 or Warehouse Manager account, and pick a printer. Close the window — the tray
 icon keeps running.
 
@@ -107,7 +107,7 @@ Windows" error rather than crashing.
 npm run dist
 ```
 
-Produces `dist/Surat Food Chain Print Agent-Setup-<version>.exe` — a one-click
+Produces `dist/Mumbai ERP Print Agent-Setup-<version>.exe` — a one-click
 NSIS installer (no install-path prompt, per-user install so it doesn't need
 admin rights, Start Menu shortcut, launches after install). `electron-builder`
 can build this Windows target from macOS/Linux directly; no Wine needed for
@@ -126,7 +126,7 @@ the NSIS target.
 ## Config persistence
 
 Everything survives an app restart via `electron-store`
-(`%APPDATA%\Surat Food Chain Print Agent\print-agent-config.json` on Windows):
+(`%APPDATA%\Mumbai ERP Print Agent\print-agent-config.json` on Windows):
 server URL, selected printer/interface, paper width, and (encrypted) the
 refresh token from the last sign-in — so the agent reconnects on its own after
 a reboot without anyone re-entering a password.

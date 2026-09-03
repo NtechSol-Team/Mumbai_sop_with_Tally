@@ -13,10 +13,10 @@
  * localhost and it stays localhost. The port and protocol from the configured
  * URL are kept as-is.
  *
- * Production is deliberately left alone: there the web origin
- * (shreeganeshaloopuri.avoilprime.com) and the API origin
- * (api.shreeganeshaloopuri.avoilprime.com) are genuinely different hosts, so
- * deriving one from the other would point every call at the wrong server.
+ * Production is deliberately left alone: there the web origin (e.g.
+ * erp.example.com) and the API origin (e.g. api.erp.example.com) are genuinely
+ * different hosts, so deriving one from the other would point every call at the
+ * wrong server.
  */
 
 /** localhost, or any RFC1918 range — i.e. a dev machine, not a deployed host. */

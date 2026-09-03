@@ -5,8 +5,8 @@ import type { PosTxn } from '@/hooks/usePos';
 import { androidPrinter, hasAndroidBridge } from '@/lib/print/android-bridge';
 import { ist } from '@/lib/utils';
 
-const STORE_NAME = 'Shree Ganesh Aloopuri';
-const STORE_TAGLINE = 'Live Aloopuri & Rasawala Khaman';
+const STORE_NAME = 'Mumbai ERP';
+const STORE_TAGLINE = '';
 
 /**
  * Whose shop the receipt is printed by. Each outlet is its own registered
@@ -27,7 +27,7 @@ export interface StoreProfile {
 
 export const DEFAULT_STORE: StoreProfile = { name: STORE_NAME, tagline: STORE_TAGLINE };
 
-const AUTOPRINT_KEY = 'scfc-pos-autoprint';
+const AUTOPRINT_KEY = 'mumbai-erp-pos-autoprint';
 
 export function getAutoPrint(): boolean {
   if (typeof window === 'undefined') return false;
@@ -88,7 +88,7 @@ function printHtml(html: string): void {
  * Chrome's built-in PDF viewer needs a beat to finish rendering after the iframe's own
  * load event before print() reliably grabs the right content, hence the short delay.
  *
- * Inside the SCFC Print Bridge Android app there is no PDF viewer or print dialog in
+ * Inside the Mumbai ERP Print Bridge Android app there is no PDF viewer or print dialog in
  * the WebView, so the blob is handed to the app instead, which opens it in the system
  * PDF viewer (from where it can be shared/printed via any installed service).
  */
@@ -441,7 +441,7 @@ export function printBatchLabel(b: BatchLabelData): void {
     ? `<div class="sec">Ingredients</div><table>${ingredientRows}</table>`
     : '<p class="center" style="font-size:11px;">No ingredients recorded.</p>'}
   <hr />
-  <p class="center" style="margin-top:6px;font-size:11px;">Shree Ganesh Aloopuri</p>
+  <p class="center" style="margin-top:6px;font-size:11px;">Mumbai ERP</p>
 </body>
 </html>`;
 

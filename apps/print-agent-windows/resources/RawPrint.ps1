@@ -55,7 +55,7 @@ public class RawPrinterHelper
     {
         IntPtr hPrinter;
         DOCINFOA di = new DOCINFOA();
-        di.pDocName = "SCFC Print Agent Receipt";
+        di.pDocName = "Mumbai ERP Print Agent Receipt";
         di.pDataType = "RAW";
 
         if (!OpenPrinter(szPrinterName, out hPrinter, IntPtr.Zero)) return false;

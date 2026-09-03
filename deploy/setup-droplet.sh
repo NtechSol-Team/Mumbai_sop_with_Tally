@@ -4,7 +4,7 @@
 # (Recommended droplet size: 2 GB RAM minimum — the Next.js build needs it.)
 set -euo pipefail
 
-REPO_DIR=/opt/scfc
+REPO_DIR=/opt/mumbai-erp
 
 echo "── 1/5 Installing Docker (official convenience script) ─────────────────"
 if ! command -v docker >/dev/null 2>&1; then
@@ -52,7 +52,7 @@ echo "── 5/5 Database seed (first run only) ──────────�
 read -rp "Seed sample data + admin login? Only for a brand-new database [y/N]: " SEED
 if [[ "${SEED,,}" == "y" ]]; then
   docker compose -f docker-compose.prod.yml exec api npm run db:seed
-  echo "Login: admin@suratfood.com / Admin@123 — change it after first login."
+  echo "Login: see the seed script output — change the password after first login."
 fi
 
 echo

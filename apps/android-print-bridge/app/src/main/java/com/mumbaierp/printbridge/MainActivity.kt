@@ -1,4 +1,4 @@
-package com.scfc.printbridge
+package com.mumbaierp.printbridge
 
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -22,7 +22,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 
 /**
- * Kiosk-style host for the SCFC web app.
+ * Kiosk-style host for the Mumbai ERP web app.
  *
  * The entire product stays the deployed Next.js app — this activity only adds
  * what mobile Chrome cannot do: a Bluetooth Classic (SPP) pipe to ESC/POS
@@ -32,10 +32,10 @@ import android.widget.FrameLayout
 class MainActivity : Activity() {
 
     companion object {
-        private const val TAG = "SCFCPrintBridge"
-        private const val PREFS = "scfc_print_bridge"
+        private const val TAG = "MumbaiErpPrintBridge"
+        private const val PREFS = "mumbai_erp_print_bridge"
         private const val KEY_URL = "app_url"
-        private const val DEFAULT_URL = "https://shreeganeshaloopuri.avoilprime.com"
+        private const val DEFAULT_URL = "https://your-mumbai-erp-domain.com"
         const val PERMISSION_REQUEST_BLUETOOTH = 4001
     }
 
@@ -142,7 +142,7 @@ class MainActivity : Activity() {
         swipeRefresh.isEnabled = !(path == "/pos" || path.startsWith("/pos/"))
     }
 
-    /** First-run setup and later reconfiguration of which SCFC deployment to load. */
+    /** First-run setup and later reconfiguration of which Mumbai ERP deployment to load. */
     private fun promptForUrl(firstRun: Boolean) {
         val input = EditText(this).apply {
             hint = DEFAULT_URL

@@ -1,11 +1,11 @@
 {
-  "name": "scfc-print-agent",
-  "productName": "Surat Food Chain Print Agent",
+  "name": "mumbai-erp-print-agent",
+  "productName": "Mumbai ERP Print Agent",
   "version": "1.0.0",
-  "description": "Local Windows print agent for Surat Food Chain — listens for order events over Socket.IO and prints ESC/POS receipts on a configured USB, LAN, or Bluetooth thermal printer, from the system tray.",
+  "description": "Local Windows print agent for Mumbai ERP — listens for order events over Socket.IO and prints ESC/POS receipts on a configured USB, LAN, or Bluetooth thermal printer, from the system tray.",
   "private": true,
   "main": "src/main.js",
-  "author": "Surat Food Chain",
+  "author": "Mumbai ERP",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
@@ -24,8 +24,8 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "com.suratfoodchain.printagent",
-    "productName": "Surat Food Chain Print Agent",
+    "appId": "com.mumbaierp.printagent",
+    "productName": "Mumbai ERP Print Agent",
     "asar": true,
     "files": [
       "src/**/*",

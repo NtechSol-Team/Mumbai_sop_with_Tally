@@ -8,7 +8,7 @@
 // subtitle and footer message change between new/revised/cancelled; nothing
 // about the receipt's shape does. Do not restyle this without checking that
 // file first -- it's the one format every print path in this system agrees on.
-const STORE_NAME = 'Shree Ganesh Aloopuri';
+const STORE_NAME = 'Mumbai ERP';
 
 const inr = (n) => `Rs ${Number(n).toFixed(2)}`;
 

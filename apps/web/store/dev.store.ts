@@ -21,7 +21,7 @@ export const useDevStore = create<DevState>()(
       clearDevKey: () => set({ devKey: null }),
     }),
     {
-      name: 'scfc-dev',
+      name: 'mumbai-erp-dev',
       storage: createJSONStorage(() => sessionStorage),
     },
   ),

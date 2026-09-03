@@ -1,4 +1,4 @@
-# SCFC API — Express + Prisma + Socket.IO + pg-boss in one process.
+# Mumbai ERP API — Express + Prisma + Socket.IO + pg-boss in one process.
 # Built from the monorepo root context: docker build -f apps/api/Dockerfile .
 FROM node:20-alpine
 
@@ -8,7 +8,7 @@ WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
-RUN npm ci --include=dev --workspace @scfc/api --include-workspace-root
+RUN npm ci --include=dev --workspace @mumbai-erp/api --include-workspace-root
 
 COPY apps/api apps/api
 RUN npx prisma generate --schema=apps/api/prisma/schema.prisma \

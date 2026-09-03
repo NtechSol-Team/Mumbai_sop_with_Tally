@@ -3,7 +3,7 @@ import { env, isDev } from './env';
 
 export const logger = pino({
   level: isDev ? 'debug' : 'info',
-  base: { service: 'scfc-api' },
+  base: { service: 'mumbai-erp-api' },
   transport: isDev
     ? {
         target: 'pino-pretty',

@@ -13,9 +13,14 @@ import { formatINR } from '@/lib/utils';
  * from settings, or make it configurable without the owner explicitly saying so
  * — a wrong character here silently sends every franchise payment to someone
  * else's account, and UPI transfers cannot be reversed.
+ *
+ * 🚧 PLACEHOLDER — these belong to the OLD client and have been blanked out for
+ * Mumbai ERP. Replace both with the Mumbai ERP client's own registered UPI
+ * collection VPA and payee name (from their Kotak virtual-account / UPI setup)
+ * BEFORE this screen is used to collect any real payment.
  */
-const PAYEE_VPA = 'aloobari@kotak';
-const PAYEE_NAME = 'ALOOBARI FOODS N BEVERAGES LLP';
+const PAYEE_VPA = 'REPLACE_ME@bank';
+const PAYEE_NAME = 'MUMBAI ERP — SET REGISTERED PAYEE NAME';
 
 /**
  * Build a UPI intent URI. Amount and note are encoded so the payer's app opens

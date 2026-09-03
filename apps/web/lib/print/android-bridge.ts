@@ -2,12 +2,12 @@
 
 /**
  * Typed client for the `window.AndroidPrinter` JavaScript interface injected
- * by the SCFC Print Bridge wrapper app (apps/android-print-bridge).
+ * by the Mumbai ERP Print Bridge wrapper app (apps/android-print-bridge).
  *
  * The native side must never block the WebView's JS thread on Bluetooth I/O,
  * so the bridge is asynchronous: we call `AndroidPrinter.request(id, method,
  * paramsJson)`, the app does the work on a background executor, and delivers
- * the result by invoking `window.__scfcPrinterBridgeResolve(id, resultJson)`.
+ * the result by invoking `window.__mumbaiErpPrinterBridgeResolve(id, resultJson)`.
  * This module turns that round-trip into ordinary Promises.
  */
 
@@ -42,11 +42,11 @@ interface BridgeResult {
 declare global {
   interface Window {
     AndroidPrinter?: RawAndroidPrinter;
-    __scfcPrinterBridgeResolve?: (id: string, resultJson: string) => void;
+    __mumbaiErpPrinterBridgeResolve?: (id: string, resultJson: string) => void;
   }
 }
 
-/** True when running inside the SCFC Print Bridge Android app. */
+/** True when running inside the Mumbai ERP Print Bridge Android app. */
 export function hasAndroidBridge(): boolean {
   return typeof window !== 'undefined' && typeof window.AndroidPrinter?.request === 'function';
 }
@@ -55,8 +55,8 @@ const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Err
 let seq = 0;
 
 function installResolver(): void {
-  if (window.__scfcPrinterBridgeResolve) return;
-  window.__scfcPrinterBridgeResolve = (id, resultJson) => {
+  if (window.__mumbaiErpPrinterBridgeResolve) return;
+  window.__mumbaiErpPrinterBridgeResolve = (id, resultJson) => {
     const entry = pending.get(id);
     if (!entry) return;
     pending.delete(id);

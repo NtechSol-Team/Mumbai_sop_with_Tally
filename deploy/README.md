@@ -1,4 +1,4 @@
-# Deploying SCFC to a DigitalOcean droplet
+# Deploying Mumbai ERP to a DigitalOcean droplet
 
 One droplet runs the whole stack via Docker Compose:
 
@@ -32,25 +32,25 @@ curl -fsSO https://raw.githubusercontent.com/<owner>/<repo>/main/deploy/setup-dr
 will ask for the clone URL, where you can embed a GitHub PAT:
 `https://<PAT>@github.com/<owner>/<repo>.git`.)
 
-The script installs Docker, clones the repo to `/opt/scfc`, generates strong secrets
-into `deploy/.env`, asks whether you have a domain (→ automatic HTTPS) or want
+The script installs Docker, clones the repo to `/opt/mumbai-erp`, generates strong
+secrets into `deploy/.env`, asks whether you have a domain (→ automatic HTTPS) or want
 IP-only HTTP to start, builds, starts everything, and optionally seeds the database
-(admin login `admin@suratfood.com` / `Admin@123` — change it immediately).
+(admin login from the seed script — change it immediately).
 
 ## 3. Updates
 
 After pushing to `main` on GitHub:
 
 ```bash
-ssh root@<droplet-ip> 'bash /opt/scfc/deploy/deploy.sh'
+ssh root@<droplet-ip> 'bash /opt/mumbai-erp/deploy/deploy.sh'
 ```
 
 ## 4. Moving from IP to a domain later
 
 1. Point an A record (e.g. `erp.yourdomain.com`) at the droplet IP.
-2. In `/opt/scfc/deploy/.env` set `PUBLIC_ORIGIN=https://erp.yourdomain.com` and
+2. In `/opt/mumbai-erp/deploy/.env` set `PUBLIC_ORIGIN=https://erp.yourdomain.com` and
    `SITE_ADDRESS=erp.yourdomain.com`.
-3. `bash /opt/scfc/deploy/deploy.sh` — Caddy fetches the Let's Encrypt certificate
+3. `bash /opt/mumbai-erp/deploy/deploy.sh` — Caddy fetches the Let's Encrypt certificate
    automatically; the web image rebuilds with the new origin baked in.
 
 > HTTPS matters beyond cosmetics: Chrome's **Web Bluetooth** printing path (tablets
@@ -59,15 +59,15 @@ ssh root@<droplet-ip> 'bash /opt/scfc/deploy/deploy.sh'
 
 ## 5. Android tablets
 
-Install the SCFC Print Bridge APK (see `apps/android-print-bridge/`), open it, and
-enter the `PUBLIC_ORIGIN` address as the server URL.
+Install the Mumbai ERP Print Bridge APK (see `apps/android-print-bridge/`), open it,
+and enter the `PUBLIC_ORIGIN` address as the server URL.
 
 ## Useful commands (on the droplet)
 
 ```bash
-cd /opt/scfc/deploy
+cd /opt/mumbai-erp/deploy
 docker compose -f docker-compose.prod.yml ps               # status
 docker compose -f docker-compose.prod.yml logs -f api      # API logs
 docker compose -f docker-compose.prod.yml exec postgres \
-  pg_dump -U surat surat_food_chain > /root/backup.sql     # DB backup
+  pg_dump -U mumbai_erp mumbai_erp > /root/backup.sql       # DB backup
 ```

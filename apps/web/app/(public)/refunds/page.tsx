@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Cancellations & Refunds — Shree Ganesh Aloopuri' };
+export const metadata: Metadata = { title: 'Cancellations & Refunds — Mumbai ERP' };
 
 export default function RefundsPage() {
   return (
@@ -47,7 +47,7 @@ export default function RefundsPage() {
         <p>
           Refunds for online payments are issued through Razorpay to the original payment method. Credit
           adjustments are reflected in the outlet&rsquo;s ledger and next invoice. For any refund query,
-          franchise partners can contact the main branch in Surat through their relationship contact or the
+          franchise partners can contact the main branch in Mumbai through their relationship contact or the
           details printed on their invoice; we aim to resolve refund queries within 7 working days.
         </p>
       </section>

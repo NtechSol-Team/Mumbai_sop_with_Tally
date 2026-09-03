@@ -143,7 +143,7 @@ async function header(
   // Shop name and address may be Gujarati, so route them through smartLine.
   // The name should be ONE imposing line, not a broken two-line wrap: "big"
   // doubles width and halves the columns, so a longer name (e.g. "SHREE
-  // GANESH LIVE ALOOPURI", 26 chars vs 24 at 80mm) drops to double-HEIGHT
+  // LIVE KITCHEN COUNTER", 26 chars vs 24 at 80mm) drops to double-HEIGHT
   // only — same height, full column count, fits on a single line.
   const nameFitsBig = !isAscii(store.name) || store.name.length <= Math.floor(colsFor(s) / 2);
   smartLine(e, s, store.name, { bold: true, center: true, big: nameFitsBig, tall: !nameFitsBig });
@@ -461,9 +461,9 @@ export async function testSlipBytes(s: PrinterSettings): Promise<Uint8Array> {
   e.invert(true).line(' Inverted ').invert(false);
   e.divider();
   e.align('center').line('QR code:');
-  e.qr('https://scfc.example/receipt-test', { size: 6 });
+  e.qr('https://mumbai-erp.example/receipt-test', { size: 6 });
   e.feed(1).line('Barcode:');
-  e.barcode('SCFC-TEST-123', { height: 56, hri: true });
+  e.barcode('MUMBAI-ERP-TEST-123', { height: 56, hri: true });
   e.feed(1).line('If all sections printed, the');
   e.line('printer is configured correctly.');
   e.feed(4).cut();
