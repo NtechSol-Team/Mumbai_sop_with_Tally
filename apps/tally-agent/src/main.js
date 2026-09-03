@@ -4,6 +4,10 @@ const path = require('node:path');
 const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, shell } = require('electron');
 const AutoLaunch = require('auto-launch');
 const config = require('./config');
+
+// Keep config next to the app's own data, not in the user's home dir.
+config.setStorePath(path.join(app.getPath('userData'), 'config.json'));
+
 const syncLoop = require('./sync-loop');
 const tally = require('./tally-client');
 

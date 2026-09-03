@@ -9,11 +9,11 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
+    "headless": "node src/run-headless.js",
     "dist": "electron-builder --win nsis"
   },
   "dependencies": {
     "auto-launch": "^5.0.6",
-    "electron-store": "^8.2.0",
     "xmlbuilder2": "^3.1.1"
   },
   "devDependencies": {
