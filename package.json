@@ -5,7 +5,8 @@
   "description": "Mumbai ERP — food manufacturing & franchise management: production, inventory, transfers, franchise ordering, billing, payments, expenses, POS, analytics, and Tally Prime accounting sync.",
   "workspaces": [
     "apps/*",
-    "!apps/print-agent-windows"
+    "!apps/print-agent-windows",
+    "!apps/tally-agent"
   ],
   "engines": {
     "node": ">=20.0.0",

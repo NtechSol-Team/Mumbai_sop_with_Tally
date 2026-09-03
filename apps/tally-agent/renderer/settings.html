@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mumbai ERP Tally Sync — Settings</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font: 13px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; margin: 0; padding: 20px; }
+    h1 { font-size: 15px; margin: 0 0 4px; }
+    p.sub { color: #6b7280; margin: 0 0 16px; }
+    label { display: block; font-weight: 600; margin: 12px 0 4px; }
+    input { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; }
+    .row { display: flex; gap: 10px; }
+    .row > div { flex: 1; }
+    button { margin-top: 16px; padding: 8px 14px; border: 0; border-radius: 6px; background: #1e6f53; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+    button.ghost { background: #e2e8f0; color: #0f172a; }
+    #status { margin-top: 14px; padding: 10px; border-radius: 6px; background: #f1f5f9; white-space: pre-wrap; }
+    .hint { color: #6b7280; font-weight: 400; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Mumbai ERP Tally Sync Agent</h1>
+  <p class="sub">Runs beside Tally. Connects outward to Mumbai ERP and posts vouchers into Tally on this machine.</p>
+
+  <label>Mumbai ERP address <span class="hint">— the API URL your team gave you</span></label>
+  <input id="erpUrl" placeholder="https://api.your-mumbai-erp-domain.com" />
+
+  <label>Pairing token <span class="hint">— from Settings → Tally Sync → Generate token</span></label>
+  <input id="agentToken" placeholder="mea_…" />
+
+  <div class="row">
+    <div>
+      <label>Tally host</label>
+      <input id="tallyHost" value="localhost" />
+    </div>
+    <div>
+      <label>Tally port</label>
+      <input id="tallyPort" value="9000" />
+    </div>
+  </div>
+
+  <label>Tally company name <span class="hint">— exactly as it appears in Tally</span></label>
+  <input id="tallyCompany" placeholder="e.g. Mumbai Foods Private Limited" />
+
+  <label>Check every (seconds)</label>
+  <input id="pollSeconds" value="20" />
+
+  <div>
+    <button id="save">Save</button>
+    <button id="test" class="ghost">Test Tally connection</button>
+    <button id="now" class="ghost">Sync now</button>
+  </div>
+
+  <div id="status">Loading…</div>
+
+  <script src="./settings.js"></script>
+</body>
+</html>
