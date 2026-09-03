@@ -6,6 +6,7 @@ import { AppError } from '../../shared/utils/AppError';
 import { nextDocNumber } from '../../shared/utils/docNumber';
 import { emitRealtime } from '../../sockets/realtime';
 import { RealtimeEvent } from '../../sockets/events';
+import { enqueueTallySync, markTallyDeleted } from '../tally/tally.outbox';
 import type { AuthUser } from '../../shared/types/api';
 import type { CreateTransactionInput, OpenSessionInput, UpdateKotInput, VoidTransactionInput } from './pos.schema';
 import { istDayString } from '../../shared/utils/date';
@@ -207,6 +208,11 @@ export async function createTransaction(user: AuthUser, input: CreateTransaction
   // Resolve payment split.
   const { cashAmount, cardAmount, upiAmount, cashReceived, changeGiven } = resolvePayment(input, grandTotal);
 
+  // A counter sale is always intra-state (walk-in at the shop): the GST already
+  // inside the price splits evenly into CGST + SGST.
+  const cgst = taxTotal.div(2).toDecimalPlaces(2);
+  const sgst = taxTotal.sub(cgst);
+
   // Menu items are counter items with no stock ledger, so a sale touches no
   // inventory — matching how the shop already runs.
   const txn = await prisma.$transaction(async (tx) => {
@@ -216,7 +222,7 @@ export async function createTransaction(user: AuthUser, input: CreateTransaction
       data: {
         receiptNumber, tokenNumber, sessionId: session.id, outletId: session.outletId, status: PosTransactionStatus.COMPLETED,
         orderType: input.orderType, customerName: input.customerName, customerPhone: input.customerPhone,
-        subTotal, itemDiscount: itemDiscountTotal, billDiscount, taxTotal, grandTotal,
+        subTotal, itemDiscount: itemDiscountTotal, billDiscount, taxTotal, cgst, sgst, grandTotal,
         paymentMode: input.paymentMode, cashReceived, changeGiven, cashAmount, cardAmount, upiAmount,
         soldById: user.id, soldAt: input.soldAt ?? new Date(),
         clientUuid: input.clientUuid, syncedFromOffline: Boolean(input.soldAt),
@@ -231,6 +237,17 @@ export async function createTransaction(user: AuthUser, input: CreateTransaction
         totalSales: { increment: grandTotal }, cashCollected: { increment: cashAmount },
         cardCollected: { increment: cardAmount }, upiCollected: { increment: upiAmount },
       },
+    });
+
+    // Sales voucher — the main-branch counter only. A franchise's own counter
+    // sales are its B2C revenue, not the company's books.
+    await enqueueTallySync(tx, {
+      entityType: 'POS_SALE', entityId: created.id, voucherType: 'SALES',
+      entityDate: created.soldAt, amount: grandTotal, docNumber: created.receiptNumber,
+      partyName: created.customerName ?? 'Counter sale',
+      excludedReason: session.outletId
+        ? 'Franchise counter sale — the outlet’s own B2C revenue, not the company’s books.'
+        : null,
     });
     return created;
   });
@@ -289,6 +306,7 @@ export async function voidTransaction(user: AuthUser, id: string, input: VoidTra
         cardCollected: { decrement: txn.cardAmount }, upiCollected: { decrement: txn.upiAmount }, voidCount: { increment: 1 },
       },
     });
+    await markTallyDeleted(tx, 'POS_SALE', id);
     return tx.posTransaction.update({ where: { id }, data: { status: PosTransactionStatus.VOID, voidReason: input.reason } });
   });
 

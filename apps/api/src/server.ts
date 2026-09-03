@@ -5,6 +5,7 @@ import { prisma } from './config/prisma';
 import { createApp } from './app';
 import { initRealtime, shutdownRealtime } from './sockets/realtime';
 import { startJobs, stopJobs } from './jobs/queue';
+import { ensureTallyDefaults } from './modules/tally/tally.config';
 
 async function bootstrap(): Promise<void> {
   // Verify DB connectivity before accepting traffic.
@@ -16,6 +17,8 @@ async function bootstrap(): Promise<void> {
 
   await initRealtime(server);
   await startJobs();
+  // Pre-fill the Tally ledger map with the recommended defaults (idempotent).
+  await ensureTallyDefaults();
 
   // Bind host is configurable so a reverse-proxied deployment can keep the API
   // off every public interface (API_HOST=127.0.0.1) while container setups, whose

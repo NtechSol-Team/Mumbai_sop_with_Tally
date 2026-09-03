@@ -7,6 +7,7 @@ import { buildPaginationMeta, toSkipTake } from '../../shared/utils/pagination';
 import { emitRealtime } from '../../sockets/realtime';
 import { RealtimeEvent } from '../../sockets/events';
 import { assertProductQuantities } from '../../shared/utils/quantity';
+import { enqueueTallySync, markTallyDeleted } from '../tally/tally.outbox';
 import type { CreateTransferInput, ListTransfersQuery, UpdateTransferStatusInput } from './transfers.schema';
 
 const transferInclude = {
@@ -64,6 +65,7 @@ export async function updateStatus(id: string, input: UpdateTransferStatusInput,
   }
 
   const updated = await prisma.$transaction(async (tx) => {
+    let transferValue = new Prisma.Decimal(0);
     if (input.status === StockTransferStatus.RECEIVED) {
       // Move stock out of the godown into the destination (main branch OR a direct outlet).
       const toOutlet = transfer.destinationType === 'OUTLET' && transfer.destinationOutletId;
@@ -74,6 +76,17 @@ export async function updateStatus(id: string, input: UpdateTransferStatusInput,
             `Not enough godown stock for ${item.product.name}: need ${item.quantity}, have ${godown?.quantity ?? 0}`,
           );
         }
+      }
+      // Snapshot the transferred value (weighted-average cost) for the Stock Journal.
+      const costs = await tx.product.findMany({
+        where: { id: { in: transfer.items.map((i) => i.productId) } },
+        select: { id: true, avgCost: true },
+      });
+      const costOf = new Map(costs.map((c) => [c.id, new Prisma.Decimal(c.avgCost)]));
+      for (const item of transfer.items) {
+        const unitCost = costOf.get(item.productId) ?? new Prisma.Decimal(0);
+        await tx.stockTransferItem.update({ where: { id: item.id }, data: { unitCost } });
+        transferValue = transferValue.add(new Prisma.Decimal(item.quantity).mul(unitCost));
       }
       for (const item of transfer.items) {
         await tx.godownStock.update({ where: { productId: item.productId }, data: { quantity: { decrement: item.quantity } } });
@@ -93,7 +106,7 @@ export async function updateStatus(id: string, input: UpdateTransferStatusInput,
       }
     }
 
-    return tx.stockTransfer.update({
+    const saved = await tx.stockTransfer.update({
       where: { id },
       data: {
         status: input.status,
@@ -102,6 +115,19 @@ export async function updateStatus(id: string, input: UpdateTransferStatusInput,
       },
       include: transferInclude,
     });
+
+    // Stock Journal — an internal godown → branch move (no GST, no party). Only
+    // built when the accountant turns on the optional stock-journal module.
+    if (input.status === StockTransferStatus.RECEIVED) {
+      await enqueueTallySync(tx, {
+        entityType: 'STOCK_TRANSFER', entityId: id, voucherType: 'STOCK_JOURNAL',
+        entityDate: saved.receivedAt ?? new Date(), amount: transferValue, docNumber: saved.transferNumber,
+        partyName: saved.destinationType === 'OUTLET' ? saved.destinationOutlet?.name ?? 'Outlet' : 'Main Branch',
+      });
+    } else if (input.status === StockTransferStatus.CANCELLED) {
+      await markTallyDeleted(tx, 'STOCK_TRANSFER', id);
+    }
+    return saved;
   });
 
   cache.invalidateTags(CacheTag.INVENTORY, CacheTag.DASHBOARD);

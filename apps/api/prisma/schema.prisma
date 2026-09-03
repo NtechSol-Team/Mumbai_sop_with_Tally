@@ -1994,7 +1994,7 @@ model TallyConfig {
   // ── Behaviour toggles (Phase 2 §I → settings, not code forks) ──
   inventoryMode         String  @default("ACCOUNTING_ONLY") @map("inventory_mode") // ACCOUNTING_ONLY | WITH_STOCK_JOURNALS
   posSupplyKind         String  @default("GOODS") @map("pos_supply_kind") // GOODS | RESTAURANT
-  posVoucherGranularity String  @default("DAILY_SUMMARY") @map("pos_voucher_granularity") // PER_BILL | DAILY_SUMMARY
+  posVoucherGranularity String  @default("PER_BILL") @map("pos_voucher_granularity") // PER_BILL | DAILY_SUMMARY (daily = future)
   razorpayReceiptMode   String  @default("CLEARING") @map("razorpay_receipt_mode") // CLEARING | DIRECT_BANK
   discountMode          String  @default("SEPARATE_LEDGER") @map("discount_mode") // SEPARATE_LEDGER | NET_OFF_SALES
   billChargesTaxable    Boolean @default(true) @map("bill_charges_taxable")

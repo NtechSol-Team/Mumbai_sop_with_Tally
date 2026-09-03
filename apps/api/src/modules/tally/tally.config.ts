@@ -1,4 +1,4 @@
-import { Prisma, ContactType } from '@prisma/client';
+import { Prisma, ContactType, PaidBy } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { logger } from '../../config/logger';
 import type { AuthUser } from '../../shared/types/api';
@@ -97,7 +97,8 @@ const FIXED_SEEDS: SeedRow[] = [
   { slot: 'SPECIAL', slotKey: 'FREIGHT_RECOVERED', slotLabel: 'Freight / packing recovered', tallyLedgerName: 'Freight & Packing Recovered', tallyParentGroup: 'Indirect Incomes' },
   { slot: 'SPECIAL', slotKey: 'PG_CHARGES', slotLabel: 'Payment-gateway charges', tallyLedgerName: 'Bank & PG Charges', tallyParentGroup: 'Indirect Expenses' },
   { slot: 'SPECIAL', slotKey: 'CASH_SALES_PARTY', slotLabel: 'Counter-sale customer', tallyLedgerName: 'Counter Sales', tallyParentGroup: 'Sundry Debtors' },
-  { slot: 'SPECIAL', slotKey: 'STOCK_TRANSFER', slotLabel: 'Internal stock transfer (journal party)', tallyLedgerName: 'Stock Transfer', tallyParentGroup: 'Primary' },
+  { slot: 'SPECIAL', slotKey: 'FIXED_ASSETS', slotLabel: 'Fixed assets (capital purchase lines)', tallyLedgerName: 'Fixed Assets', tallyParentGroup: 'Fixed Assets' },
+  { slot: 'SPECIAL', slotKey: 'OUTSTANDING_EXPENSES', slotLabel: 'Outstanding expenses (accrued, unpaid)', tallyLedgerName: 'Outstanding Expenses', tallyParentGroup: 'Current Liabilities' },
 ];
 
 /** name-based guess for an expense category's Tally ledger + group. */
@@ -121,6 +122,16 @@ export async function ensureTallyDefaults(): Promise<void> {
 
     const have = new Set(existing.map((r) => `${r.slot}:${r.slotKey}`));
     const rows: SeedRow[] = [...FIXED_SEEDS];
+
+    // A current account per partner who fronts business costs out of pocket.
+    for (const p of Object.values(PaidBy)) {
+      if (p === PaidBy.COMPANY) continue;
+      const label = p.charAt(0) + p.slice(1).toLowerCase();
+      rows.push({
+        slot: 'SPECIAL', slotKey: `PARTNER_${p}`, slotLabel: `${label} — current account`,
+        tallyLedgerName: `${label} Current A/c`, tallyParentGroup: 'Capital Account',
+      });
+    }
 
     for (const o of outlets) {
       rows.push({

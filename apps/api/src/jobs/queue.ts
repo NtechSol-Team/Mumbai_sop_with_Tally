@@ -9,6 +9,7 @@ export const JobName = {
   SUPPLIER_BILL_REMINDERS: 'supplier-bill-reminders',
   POS_SESSION_ROLLOVER: 'pos-session-rollover',
   SERVER_METRICS_SAMPLE: 'server-metrics-sample',
+  TALLY_BUILD_VOUCHERS: 'tally-build-vouchers',
 } as const;
 
 export type JobNameValue = (typeof JobName)[keyof typeof JobName];
@@ -49,12 +50,14 @@ export async function startJobs(): Promise<void> {
   const { supplierBillRemindersHandler } = await import('./handlers/supplierBillReminders');
   const { dailySessionRolloverHandler } = await import('./handlers/dailySessionRollover');
   const { serverMetricsSampleHandler } = await import('./handlers/serverMetricsSample');
+  const { tallyBuildVouchersHandler } = await import('./handlers/tallyBuildVouchers');
 
   await boss.work(JobName.REFRESH_ANALYTICS, refreshAnalyticsHandler);
   await boss.work(JobName.GENERATE_BILL_PDF, generateBillPdfHandler);
   await boss.work(JobName.SUPPLIER_BILL_REMINDERS, supplierBillRemindersHandler);
   await boss.work(JobName.POS_SESSION_ROLLOVER, dailySessionRolloverHandler);
   await boss.work(JobName.SERVER_METRICS_SAMPLE, serverMetricsSampleHandler);
+  await boss.work(JobName.TALLY_BUILD_VOUCHERS, tallyBuildVouchersHandler);
 
   // Schedule recurring analytics refresh + daily supplier-bill due-date sweep.
   // The two interval schedules (*/15, */5) are timezone-agnostic; the ones with a
@@ -65,6 +68,9 @@ export async function startJobs(): Promise<void> {
   await boss.schedule(JobName.POS_SESSION_ROLLOVER, env.POS_SESSION_ROLLOVER_CRON, {}, { tz: IST_TZ });
   // Whole-server telemetry for the developer console (one tiny row per run).
   await boss.schedule(JobName.SERVER_METRICS_SAMPLE, env.SERVER_METRICS_SAMPLE_CRON, {});
+  // Turn PENDING Tally-sync rows into validated vouchers — cheap no-op when the
+  // sync is off or the queue is empty.
+  await boss.schedule(JobName.TALLY_BUILD_VOUCHERS, '* * * * *', {});
 
   logger.info('pg-boss started (queues + scheduled jobs registered)');
 }
