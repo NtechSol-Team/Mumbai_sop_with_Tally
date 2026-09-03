@@ -14,6 +14,7 @@ import {
   Landmark,
   Contact,
   Settings,
+  BookUp,
 } from 'lucide-react';
 import type { UserRole } from '@/types/api';
 
@@ -43,6 +44,7 @@ export const navItems: NavItem[] = [
   { label: 'Payments', href: '/payments', icon: Wallet, roles: ['SUPER_ADMIN', 'FRANCHISE_OWNER', 'GODOWN_MANAGER'] },
   { label: 'Contacts', href: '/contacts', icon: Contact, roles: ['SUPER_ADMIN', 'GODOWN_MANAGER'] },
   { label: 'Accounting', href: '/accounting', icon: Landmark, roles: ['SUPER_ADMIN'] },
+  { label: 'Tally Sync', href: '/tally', icon: BookUp, roles: ['SUPER_ADMIN'] },
   { label: 'Analytics', href: '/analytics', icon: BarChart3, roles: ['SUPER_ADMIN', 'FRANCHISE_OWNER'] },
   { label: 'Payroll', href: '/payroll', icon: BadgeIndianRupee, roles: ['SUPER_ADMIN'] },
   { label: 'Users', href: '/users', icon: Users, roles: ['SUPER_ADMIN'] },
