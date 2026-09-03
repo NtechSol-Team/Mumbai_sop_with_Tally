@@ -55,7 +55,7 @@ function sanitizeContact(raw?: string | null): string | undefined {
 }
 
 export async function openRazorpayCheckout(opts: {
-  order: { orderId: string; amount: number; currency: string; keyId: string };
+  order: { orderId: string; amount: number; currency: string; keyId: string; checkoutName?: string };
   customerName?: string;
   /** Prefilled so checkout skips its "enter contact details" screen. */
   customerEmail?: string;
@@ -72,7 +72,7 @@ export async function openRazorpayCheckout(opts: {
     amount: opts.order.amount,
     currency: opts.order.currency,
     order_id: opts.order.orderId,
-    name: 'Mumbai ERP',
+    name: opts.order.checkoutName || 'Payment',
     description: opts.description ?? 'Bill payment',
     prefill: {
       name: opts.customerName,

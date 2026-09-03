@@ -15,9 +15,10 @@ import { apiErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import { useOutlets, useAssignMenu, type Outlet } from '@/hooks/useOutlets';
 import { useMenus } from '@/hooks/useMenus';
-import { useCallNumber, useUpdateCallNumber } from '@/hooks/useSettings';
+import { useCallNumber, useUpdateCallNumber, useCompanyProfile } from '@/hooks/useSettings';
 import { OutletDetailsDialog } from '@/components/settings/outlet-details-dialog';
 import { OutletDocumentsDialog } from '@/components/settings/outlet-documents-dialog';
+import { BusinessProfileDialog } from '@/components/settings/business-profile-dialog';
 import { MenuManagement } from '@/components/menus/menu-management';
 
 /**
@@ -51,6 +52,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-5">
+      <BusinessProfileCard />
       <CallNumberCard />
 
       {/* Tabs */}
@@ -153,6 +155,48 @@ export default function SettingsPage() {
       <OutletDetailsDialog outlet={editing} onClose={() => setEditing(null)} />
       <OutletDocumentsDialog outlet={docsFor} onClose={() => setDocsFor(null)} />
     </div>
+  );
+}
+
+/**
+ * Head-office business identity — name, GSTIN, and the UPI collection account
+ * that every franchise payment lands in. Feeds the invoice/payslip letterhead,
+ * the payment checkout name, and the franchise-payment UPI QR.
+ */
+function BusinessProfileCard() {
+  const { data, isLoading } = useCompanyProfile();
+  const [open, setOpen] = useState(false);
+
+  const name = data?.displayName || data?.legalName || '';
+  const gstinLabel = data?.gstin ? data.gstin : 'No GSTIN set';
+  const upiLabel = data?.upiVpa ? data.upiVpa : 'UPI collection not set';
+
+  return (
+    <Card className="flex flex-wrap items-center gap-3 p-4">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <Store className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-body font-medium">Business Profile</p>
+        {isLoading ? (
+          <Skeleton className="mt-1 h-4 w-64" />
+        ) : (
+          <p className="truncate text-caption text-muted-foreground">
+            {name || 'Set your registered name'} · {gstinLabel} · {upiLabel}
+          </p>
+        )}
+      </div>
+      {!isLoading && (!data?.upiVpa || !data?.gstin) && (
+        <Badge variant="warning">
+          <AlertTriangle className="mr-1 -ml-0.5 inline h-3 w-3" />
+          {!data?.upiVpa && !data?.gstin ? 'GSTIN & UPI missing' : !data?.upiVpa ? 'UPI missing' : 'GSTIN missing'}
+        </Badge>
+      )}
+      <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
+        <Pencil className="h-3.5 w-3.5" /> Edit
+      </Button>
+      <BusinessProfileDialog open={open} onClose={() => setOpen(false)} />
+    </Card>
   );
 }
 

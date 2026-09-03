@@ -76,11 +76,10 @@ const envSchema = z.object({
   SERVER_METRICS_RETENTION_DAYS: z.coerce.number().int().positive().default(14),
   SERVER_METRICS_NET_INTERFACE: z.string().default('eth0'),
 
-  // Company letterhead details for invoice PDFs. GSTIN blank by default — only
-  // printed on GST invoices once the business's actual registered GSTIN is set.
-  // These placeholders MUST be replaced with the Mumbai ERP client's registered
-  // legal entity details (name exactly as on the GST certificate) before any
-  // real invoice is issued.
+  // Company letterhead details — FIRST-RUN FALLBACK ONLY. The live values are
+  // maintained by the main owner in Settings → Business Profile (stored in
+  // app_settings as COMPANY_PROFILE) and override everything below once saved.
+  // See modules/settings/settings.service.ts → getCompanyProfile().
   COMPANY_NAME: z.string().default('Mumbai ERP'),
   COMPANY_TAGLINE: z.string().default('Mumbai ERP'),
   COMPANY_ADDRESS: z.string().default(''),

@@ -9,6 +9,7 @@ import { emitRealtime } from '../../sockets/realtime';
 import { RealtimeEvent } from '../../sockets/events';
 import { razorpay, razorpayErrorMessage, verifyCheckoutSignature, verifyWebhookSignature } from '../../config/razorpay';
 import { env } from '../../config/env';
+import { getCompanyProfile } from '../settings/settings.service';
 import { ordersService } from '../orders/orders.service';
 import type { AuthUser } from '../../shared/types/api';
 import type { CashPaymentInput, ListPaymentsQuery, VerifyRazorpayInput } from './payments.schema';
@@ -116,7 +117,9 @@ export async function createRazorpayOrder(billId: string, user: AuthUser) {
       receipt: bill.billNumber,
       notes: { billId: bill.id, outletId: bill.outletId },
     });
-    return { orderId: order.id, amount: amountPaise, currency: 'INR', keyId: env.RAZORPAY_KEY_ID };
+    const company = await getCompanyProfile();
+    const checkoutName = company.displayName || company.legalName || 'Payment';
+    return { orderId: order.id, amount: amountPaise, currency: 'INR', keyId: env.RAZORPAY_KEY_ID, checkoutName };
   } catch (err) {
     throw AppError.payment(`Could not initiate payment: ${razorpayErrorMessage(err)}`);
   }

@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import PDFDocument from 'pdfkit';
 import type { Prisma } from '@prisma/client';
-import { env } from '../../config/env';
 import { istDayString } from '../../shared/utils/date';
+import { getCompanyProfile } from '../settings/settings.service';
 
 export type BillWithRelations = Prisma.BillGetPayload<{
   include: { items: true; charges: true; outlet: true };
@@ -56,8 +56,11 @@ const INR = (v: Prisma.Decimal | number): string =>
  * Render a bill to PDF, piped into `dest` (a file write stream or an HTTP response —
  * anything writable). Resolves once `dest` has finished flushing.
  */
-export function renderBillPdf(bill: BillWithRelations, dest: NodeJS.WritableStream): Promise<void> {
-  return new Promise((resolve, reject) => {
+export async function renderBillPdf(bill: BillWithRelations, dest: NodeJS.WritableStream): Promise<void> {
+  // Seller identity (name, GSTIN, address, invoice terms) is maintained by the
+  // main owner in Settings → Business Profile; env values are only the fallback.
+  const company = await getCompanyProfile();
+  await new Promise<void>((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
     const FONT = { regular: 'Helvetica', bold: 'Helvetica-Bold' };
     if (FONT_REGULAR) { doc.registerFont('Body', FONT_REGULAR); FONT.regular = 'Body'; }
@@ -74,11 +77,12 @@ export function renderBillPdf(bill: BillWithRelations, dest: NodeJS.WritableStre
       doc.image(LOGO_PATH, PAGE.left, headerTop, { width: 70 });
     }
     const textX = LOGO_PATH ? PAGE.left + 82 : PAGE.left;
-    doc.fontSize(18).fillColor(COLOR.text).text(env.COMPANY_NAME, textX, headerTop, { width: 260 });
-    doc.fontSize(9).fillColor(COLOR.muted).text(env.COMPANY_TAGLINE, textX, doc.y + 1, { width: 260 });
-    const addrLines = [env.COMPANY_ADDRESS, env.COMPANY_PHONE ? `Ph: ${env.COMPANY_PHONE}` : ''].filter(Boolean);
+    const sellerName = company.legalName || company.displayName;
+    doc.fontSize(18).fillColor(COLOR.text).text(sellerName, textX, headerTop, { width: 260 });
+    if (company.tagline) doc.fontSize(9).fillColor(COLOR.muted).text(company.tagline, textX, doc.y + 1, { width: 260 });
+    const addrLines = [company.address, company.phone ? `Ph: ${company.phone}` : ''].filter(Boolean);
     if (addrLines.length) doc.fontSize(8).fillColor(COLOR.faint).text(addrLines.join('  ·  '), textX, doc.y + 2, { width: 260 });
-    if (bill.isGstBill && env.COMPANY_GSTIN) doc.fontSize(8).fillColor(COLOR.faint).text(`GSTIN: ${env.COMPANY_GSTIN}`, textX, doc.y + 1, { width: 260 });
+    if (bill.isGstBill && company.gstin) doc.fontSize(8).fillColor(COLOR.faint).text(`GSTIN: ${company.gstin}`, textX, doc.y + 1, { width: 260 });
 
     doc.fontSize(16).fillColor(COLOR.brand).text(bill.isGstBill ? 'TAX INVOICE' : 'INVOICE', PAGE.left, headerTop, { align: 'right', width: PAGE.width });
     doc.fontSize(10).fillColor(COLOR.text).text(bill.billNumber, PAGE.left, doc.y + 2, { align: 'right', width: PAGE.width });
@@ -189,7 +193,7 @@ export function renderBillPdf(bill: BillWithRelations, dest: NodeJS.WritableStre
     }
 
     // ── Terms & Conditions ─────────────────────────────────────────────────
-    const terms = env.COMPANY_TERMS.split('|').map((t) => t.trim()).filter(Boolean);
+    const terms = company.invoiceTerms.split('|').map((t) => t.trim()).filter(Boolean);
     if (terms.length) {
       const footerReserve = 40; // leave room for the disclaimer footer below
       y += 18;
@@ -211,8 +215,8 @@ export function renderBillPdf(bill: BillWithRelations, dest: NodeJS.WritableStre
       .fontSize(8)
       .fillColor(COLOR.faint)
       .text('This is a computer-generated invoice.', PAGE.left, 768, { align: 'center', width: PAGE.width });
-    if (env.COMPANY_PHONE || env.COMPANY_GSTIN) {
-      const bits = [env.COMPANY_PHONE && `Ph: ${env.COMPANY_PHONE}`, env.COMPANY_GSTIN && `GSTIN: ${env.COMPANY_GSTIN}`].filter(Boolean);
+    if (company.phone || company.gstin) {
+      const bits = [company.phone && `Ph: ${company.phone}`, company.gstin && `GSTIN: ${company.gstin}`].filter(Boolean);
       doc.text(bits.join('   ·   '), PAGE.left, 780, { align: 'center', width: PAGE.width });
     }
 

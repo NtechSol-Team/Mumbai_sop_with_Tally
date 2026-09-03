@@ -30,6 +30,8 @@ export interface RazorpayOrder {
   amount: number;
   currency: string;
   keyId: string;
+  /** Business name shown on the Razorpay checkout — from the company profile. */
+  checkoutName?: string;
 }
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>) {

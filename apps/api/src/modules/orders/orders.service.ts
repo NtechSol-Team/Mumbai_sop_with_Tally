@@ -15,6 +15,7 @@ import { razorpay, razorpayErrorMessage, verifyCheckoutSignature } from '../../c
 import { env } from '../../config/env';
 import { enqueue, JobName } from '../../jobs/queue';
 import { billingService } from '../billing/billing.service';
+import { getCompanyProfile } from '../settings/settings.service';
 import type { AuthUser } from '../../shared/types/api';
 import type {
   CreateOrderInput, ListOrdersQuery, OrderSummaryQuery, RejectOrderInput, VerifyOrderPaymentInput,
@@ -541,7 +542,9 @@ export async function createOrderPaymentIntent(user: AuthUser, id: string) {
       where: { id },
       data: { razorpayOrderId: rzpOrder.id, paymentMode: OrderPaymentMode.ONLINE },
     });
-    return { orderId: rzpOrder.id, amount: amountPaise, currency: 'INR', keyId: env.RAZORPAY_KEY_ID };
+    const company = await getCompanyProfile();
+    const checkoutName = company.displayName || company.legalName || 'Payment';
+    return { orderId: rzpOrder.id, amount: amountPaise, currency: 'INR', keyId: env.RAZORPAY_KEY_ID, checkoutName };
   } catch (err) {
     throw AppError.payment(`Could not initiate payment: ${razorpayErrorMessage(err)}`);
   }

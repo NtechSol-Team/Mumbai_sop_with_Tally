@@ -2,25 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { Loader2, Smartphone } from 'lucide-react';
+import { Loader2, Smartphone, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatINR } from '@/lib/utils';
+import { useCompanyProfile } from '@/hooks/useSettings';
 
 /**
- * The shop's UPI collection QR, rendered with the amount already filled in.
+ * The business's UPI collection QR, rendered with the amount already filled in.
  *
- * ⚠️ PAYEE_VPA IS THE ACCOUNT THE MONEY LANDS IN. Do not change it, derive it
- * from settings, or make it configurable without the owner explicitly saying so
- * — a wrong character here silently sends every franchise payment to someone
- * else's account, and UPI transfers cannot be reversed.
- *
- * 🚧 PLACEHOLDER — these belong to the OLD client and have been blanked out for
- * Mumbai ERP. Replace both with the Mumbai ERP client's own registered UPI
- * collection VPA and payee name (from their Kotak virtual-account / UPI setup)
- * BEFORE this screen is used to collect any real payment.
+ * ⚠️ The payee VPA is THE ACCOUNT THE MONEY LANDS IN. It is not hard-coded — the
+ * main owner sets it once in Settings → Business Profile (UPI collection ID +
+ * payee name), the API validates the `name@bank` format, and it is delivered
+ * here over an authenticated request. Until it is set, this component shows a
+ * "not configured" notice rather than a QR that points at nothing — a wrong or
+ * empty VPA would silently misroute every franchise payment, and UPI transfers
+ * cannot be reversed.
  */
-const PAYEE_VPA = 'REPLACE_ME@bank';
-const PAYEE_NAME = 'MUMBAI ERP — SET REGISTERED PAYEE NAME';
 
 /**
  * Build a UPI intent URI. Amount and note are encoded so the payer's app opens
@@ -32,10 +29,10 @@ const PAYEE_NAME = 'MUMBAI ERP — SET REGISTERED PAYEE NAME';
  * choke on either. Real-world UPI QRs keep the VPA literal and percent-encode
  * the rest, so that's what this matches.
  */
-function upiUri(amount: number, note: string): string {
+function upiUri(vpa: string, payeeName: string, amount: number, note: string): string {
   const q = [
-    `pa=${PAYEE_VPA}`,
-    `pn=${encodeURIComponent(PAYEE_NAME)}`,
+    `pa=${vpa}`,
+    `pn=${encodeURIComponent(payeeName)}`,
     'cu=INR',
     `am=${amount.toFixed(2)}`,
     `tn=${encodeURIComponent(note)}`,
@@ -44,17 +41,20 @@ function upiUri(amount: number, note: string): string {
 }
 
 export function UpiQr({ amount, reference, outletName }: { amount: number; reference: string; outletName?: string }) {
+  const { data: company, isLoading: loadingProfile } = useCompanyProfile();
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const vpa = company?.upiVpa?.trim() ?? '';
+  const payeeName = company?.upiPayeeName?.trim() || company?.displayName?.trim() || company?.legalName?.trim() || '';
+
   // Outlet name first — that's what the owner recognises at a glance in the
   // bank SMS/passbook — then the order or bill number to match it precisely.
-  // Most UPI apps only show the first ~50 chars of the note before truncating,
-  // so this stays short rather than spelling out "Order"/"Bill".
   const note = outletName ? `${outletName} · ${reference}` : reference;
-  const uri = upiUri(amount, note);
+  const uri = vpa ? upiUri(vpa, payeeName, amount, note) : '';
 
   useEffect(() => {
+    if (!uri) { setDataUrl(null); return; }
     let cancelled = false;
     setDataUrl(null);
     setError(null);
@@ -62,14 +62,37 @@ export function UpiQr({ amount, reference, outletName }: { amount: number; refer
       .then((url) => { if (!cancelled) setDataUrl(url); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Could not build the QR code'); });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- uri is derived from amount/note, both already deps
-  }, [amount, note]);
+  }, [uri]);
+
+  if (loadingProfile) {
+    return (
+      <div className="flex items-center justify-center rounded-xl border border-border bg-card p-6">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!vpa) {
+    return (
+      <div className="flex items-start gap-2.5 rounded-xl border border-warning/40 bg-warning/10 p-4 text-caption">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+        <div>
+          <p className="font-medium text-foreground">UPI collection not set up yet</p>
+          <p className="text-muted-foreground">
+            The main owner needs to add the business&apos;s UPI collection ID in
+            Settings → Business Profile before the payment QR can be shown. Cash and
+            bank-transfer entry still work below.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-5 text-center">
       <div>
         <p className="text-caption text-muted-foreground">Pay to</p>
-        <p className="text-label font-bold leading-tight">{PAYEE_NAME}</p>
+        <p className="text-label font-bold leading-tight">{payeeName || vpa}</p>
         <p className="mt-1 text-2xl font-extrabold leading-none">{formatINR(amount)}</p>
       </div>
 
@@ -101,7 +124,7 @@ export function UpiQr({ amount, reference, outletName }: { amount: number; refer
       </div>
 
       <p className="text-caption text-muted-foreground">
-        UPI ID <span className="font-semibold text-foreground">{PAYEE_VPA}</span>
+        UPI ID <span className="font-semibold text-foreground">{vpa}</span>
       </p>
     </div>
   );

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import PDFDocument from 'pdfkit';
 import type { Prisma } from '@prisma/client';
-import { env } from '../../config/env';
+import { getCompanyProfile } from '../settings/settings.service';
 
 const LOGO_PATH = path.resolve(process.cwd(), 'assets/logo.png');
 
@@ -69,8 +69,9 @@ const titleCase = (s: string) => s.replace(/_/g, ' ').toLowerCase().replace(/\b\
  * Render a salary slip, piped into `dest` (an HTTP response or a file stream).
  * Mirrors renderBillPdf's shape so both documents look like the same business.
  */
-export function renderPayslipPdf(slip: PayslipData, dest: NodeJS.WritableStream): Promise<void> {
-  return new Promise((resolve, reject) => {
+export async function renderPayslipPdf(slip: PayslipData, dest: NodeJS.WritableStream): Promise<void> {
+  const company = await getCompanyProfile();
+  await new Promise<void>((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
     doc.pipe(dest);
     dest.on('finish', () => resolve());
@@ -83,12 +84,12 @@ export function renderPayslipPdf(slip: PayslipData, dest: NodeJS.WritableStream)
     const headerTop = 50;
     if (hasLogo) doc.image(LOGO_PATH, PAGE.left, headerTop, { width: 70 });
     const textX = hasLogo ? PAGE.left + 82 : PAGE.left;
-    doc.font('Helvetica-Bold').fontSize(18).fillColor(COLOR.text).text(env.COMPANY_NAME, textX, headerTop, { width: 280 });
+    doc.font('Helvetica-Bold').fontSize(18).fillColor(COLOR.text).text(company.legalName || company.displayName, textX, headerTop, { width: 280 });
     doc.font('Helvetica').fontSize(9).fillColor(COLOR.muted);
     let hy = doc.y;
-    if (env.COMPANY_TAGLINE) { doc.text(env.COMPANY_TAGLINE, textX, hy, { width: 280 }); hy = doc.y; }
-    if (env.COMPANY_ADDRESS) { doc.text(env.COMPANY_ADDRESS, textX, hy, { width: 280 }); hy = doc.y; }
-    if (env.COMPANY_PHONE) { doc.text(`Phone: ${env.COMPANY_PHONE}`, textX, hy, { width: 280 }); hy = doc.y; }
+    if (company.tagline) { doc.text(company.tagline, textX, hy, { width: 280 }); hy = doc.y; }
+    if (company.address) { doc.text(company.address, textX, hy, { width: 280 }); hy = doc.y; }
+    if (company.phone) { doc.text(`Phone: ${company.phone}`, textX, hy, { width: 280 }); hy = doc.y; }
 
     doc.font('Helvetica-Bold').fontSize(15).fillColor(COLOR.brand)
       .text('SALARY SLIP', PAGE.right - 200, headerTop, { width: 200, align: 'right' });

@@ -85,7 +85,7 @@ export function paymentInfoFor(order: Order): { status: 'PENDING' | 'PARTIAL' | 
   return { status: pretty ? 'PARTIAL' : 'PENDING', amountDue: due, method: pretty };
 }
 
-export interface RazorpayOrderIntent { orderId: string; amount: number; currency: string; keyId: string }
+export interface RazorpayOrderIntent { orderId: string; amount: number; currency: string; keyId: string; checkoutName?: string }
 
 /** Inclusive ISO dates (yyyy-MM-dd), read as IST calendar days on the server. */
 export interface OrderFilters {

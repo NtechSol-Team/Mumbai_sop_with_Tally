@@ -19,3 +19,44 @@ export function useUpdateCallNumber() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['settings', 'call-number'] }),
   });
 }
+
+/**
+ * Head-office business identity — the entity that raises franchise invoices and
+ * collects payment. Maintained by the main owner in Settings → Business Profile;
+ * read by the invoice PDF, the payslip PDF, the payment checkout name, and the
+ * franchise-payment UPI QR.
+ */
+export interface CompanyProfile {
+  legalName: string;
+  displayName: string;
+  tagline: string;
+  address: string;
+  phone: string;
+  email: string;
+  gstin: string;
+  fssai: string;
+  upiVpa: string;
+  upiPayeeName: string;
+  invoiceTerms: string;
+}
+
+/** Readable by every authenticated role — the UPI QR and invoice header need it. */
+export function useCompanyProfile() {
+  return useQuery({
+    queryKey: ['settings', 'company'],
+    queryFn: async () => (await api.get<ApiSuccess<CompanyProfile>>('/settings/company')).data.data,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useUpdateCompanyProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (patch: Partial<CompanyProfile>) =>
+      (await api.put<ApiSuccess<CompanyProfile>>('/settings/company', patch)).data.data,
+    onSuccess: (data) => {
+      qc.setQueryData(['settings', 'company'], data);
+      qc.invalidateQueries({ queryKey: ['settings', 'company'] });
+    },
+  });
+}
