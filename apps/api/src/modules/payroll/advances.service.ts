@@ -3,6 +3,7 @@ import { prisma } from '../../config/prisma';
 import { cache, CacheTag } from '../../config/cache';
 import { AppError } from '../../shared/utils/AppError';
 import { nextDocNumber } from '../../shared/utils/docNumber';
+import { enqueueTallySync, markTallyDeleted } from '../tally/tally.outbox';
 import type { CreateAdvanceInput, ListAdvancesQuery, UpdateAdvanceInput } from './payroll.schema';
 
 const ADVANCE_CATEGORY = 'Employee Advance';
@@ -67,6 +68,10 @@ export async function createAdvance(input: CreateAdvanceInput, createdById: stri
       },
       select: { id: true },
     });
+    await enqueueTallySync(tx, {
+      entityType: 'EXPENSE', entityId: expense.id, voucherType: 'PAYMENT',
+      entityDate: input.givenDate, amount: input.amount, docNumber: null, partyName: employee.name,
+    });
     const advanceNo = await nextDocNumber(tx, 'ADVANCE');
     return tx.employeeAdvance.create({
       data: { advanceNo, employeeId: input.employeeId, amount: input.amount, givenDate: input.givenDate, paymentMethod: input.paymentMethod, notes: input.notes, expenseId: expense.id, createdById },
@@ -96,6 +101,13 @@ export async function updateAdvance(id: string, input: UpdateAdvanceInput) {
     if (input.paymentMethod !== undefined && existing.expenseId) {
       await tx.expense.update({ where: { id: existing.expenseId }, data: { paymentMethod: input.paymentMethod } });
     }
+    if (existing.expenseId && (input.amount !== undefined || input.givenDate !== undefined || input.paymentMethod !== undefined)) {
+      const e = await tx.expense.findUniqueOrThrow({ where: { id: existing.expenseId }, select: { id: true, amount: true, expenseDate: true, paidTo: true } });
+      await enqueueTallySync(tx, {
+        entityType: 'EXPENSE', entityId: e.id, voucherType: 'PAYMENT',
+        entityDate: e.expenseDate, amount: e.amount, docNumber: null, partyName: e.paidTo,
+      });
+    }
     return tx.employeeAdvance.update({ where: { id }, data: input, select: advanceSelect });
   });
   invalidate();
@@ -111,7 +123,10 @@ export async function deleteAdvance(id: string) {
 
   await prisma.$transaction(async (tx) => {
     await tx.employeeAdvance.update({ where: { id }, data: { isDeleted: true } });
-    if (existing.expenseId) await tx.expense.delete({ where: { id: existing.expenseId } });
+    if (existing.expenseId) {
+      await markTallyDeleted(tx, 'EXPENSE', existing.expenseId);
+      await tx.expense.delete({ where: { id: existing.expenseId } });
+    }
   });
   invalidate();
   return { deleted: true };

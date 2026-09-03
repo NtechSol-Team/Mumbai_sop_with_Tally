@@ -7,6 +7,7 @@ import { booksScopeFor } from '../../shared/utils/books';
 import type { AuthUser } from '../../shared/types/api';
 import { nextDocNumber } from '../../shared/utils/docNumber';
 import { buildPaginationMeta, toSkipTake } from '../../shared/utils/pagination';
+import { enqueueTallySync } from '../tally/tally.outbox';
 import type { ListPayablesQuery, PaySupplierInput } from './payables.schema';
 
 export async function listPayables(query: ListPayablesQuery, user: AuthUser) {
@@ -65,6 +66,18 @@ export async function paySupplier(id: string, input: PaySupplierInput, user: Aut
     const newBalance = new Prisma.Decimal(bill.totalAmount).sub(newPaid);
     const status = newBalance.lessThanOrEqualTo(0) ? SupplierBillStatus.PAID : SupplierBillStatus.PARTIALLY_PAID;
     const updated = await tx.supplierBill.update({ where: { id: bill.id }, data: { amountPaid: newPaid, balanceDue: newBalance, status } });
+
+    // Payment voucher — but only if the bill it settles is itself synced.
+    const excludedReason = !bill.isGstBill
+      ? 'Payment against a non-GST purchase — excluded from Tally along with its bill.'
+      : outletId
+        ? 'Payment for a branch purchase — excluded from the company books.'
+        : null;
+    await enqueueTallySync(tx, {
+      entityType: 'SUPPLIER_PAYMENT', entityId: payment.id, voucherType: 'PAYMENT',
+      entityDate: payment.paymentDate, amount: payment.amount, docNumber: payment.paymentNumber,
+      partyName: bill.supplierName, excludedReason,
+    });
     return { payment, bill: updated };
   });
 

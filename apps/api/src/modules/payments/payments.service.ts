@@ -10,6 +10,7 @@ import { RealtimeEvent } from '../../sockets/events';
 import { razorpay, razorpayErrorMessage, verifyCheckoutSignature, verifyWebhookSignature } from '../../config/razorpay';
 import { env } from '../../config/env';
 import { getCompanyProfile } from '../settings/settings.service';
+import { enqueueTallySync, markTallyDeleted } from '../tally/tally.outbox';
 import { ordersService } from '../orders/orders.service';
 import type { AuthUser } from '../../shared/types/api';
 import type { CashPaymentInput, ListPaymentsQuery, VerifyRazorpayInput } from './payments.schema';
@@ -33,7 +34,10 @@ interface RecordPaymentArgs {
  */
 async function recordPayment(args: RecordPaymentArgs) {
   const result = await prisma.$transaction(async (tx) => {
-    const bill = await tx.bill.findFirst({ where: { id: args.billId, isDeleted: false } });
+    const bill = await tx.bill.findFirst({
+      where: { id: args.billId, isDeleted: false },
+      include: { outlet: { select: { name: true } } },
+    });
     if (!bill) throw AppError.notFound('Bill not found');
     if (bill.status === BillStatus.PAID) throw AppError.invalidState('This bill is already fully paid');
     if (bill.status === BillStatus.CANCELLED) throw AppError.invalidState('This bill is cancelled');
@@ -71,6 +75,17 @@ async function recordPayment(args: RecordPaymentArgs) {
       where: { id: bill.id },
       data: { amountPaid: newPaid, balanceDue: newBalance, status: newStatus },
       select: { id: true, billNumber: true, status: true, balanceDue: true, outletId: true },
+    });
+
+    // Receipt voucher: Dr Bank/Cash, Cr the outlet's Sundry Debtor, against this bill.
+    await enqueueTallySync(tx, {
+      entityType: 'PAYMENT_IN',
+      entityId: payment.id,
+      voucherType: 'RECEIPT',
+      entityDate: payment.paymentDate,
+      amount: payment.amount,
+      docNumber: payment.paymentNumber,
+      partyName: bill.outlet.name,
     });
 
     return { payment, bill: updatedBill };
@@ -177,6 +192,7 @@ export async function deletePayment(id: string) {
     if (!bill) throw AppError.notFound('The bill this payment was recorded against no longer exists');
 
     await tx.payment.update({ where: { id: payment.id }, data: { isDeleted: true } });
+    await markTallyDeleted(tx, 'PAYMENT_IN', payment.id);
 
     const remaining = await tx.payment.aggregate({
       _sum: { amount: true },

@@ -16,6 +16,7 @@ import { env } from '../../config/env';
 import { enqueue, JobName } from '../../jobs/queue';
 import { billingService } from '../billing/billing.service';
 import { getCompanyProfile } from '../settings/settings.service';
+import { enqueueTallySync } from '../tally/tally.outbox';
 import type { AuthUser } from '../../shared/types/api';
 import type {
   CreateOrderInput, ListOrdersQuery, OrderSummaryQuery, RejectOrderInput, VerifyOrderPaymentInput,
@@ -567,7 +568,7 @@ async function recordOrderPaymentTx(
   paidWith: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string },
 ) {
   const paymentNumber = await nextDocNumber(tx, 'PAYMENT');
-  await tx.payment.create({
+  const payment = await tx.payment.create({
     data: {
       paymentNumber,
       billId,
@@ -585,6 +586,16 @@ async function recordOrderPaymentTx(
         ? `Online payment for order ${order.orderNumber}`
         : `Advance online payment for order ${order.orderNumber} (before fulfilment)`,
     },
+  });
+
+  await enqueueTallySync(tx, {
+    entityType: 'PAYMENT_IN',
+    entityId: payment.id,
+    voucherType: 'RECEIPT',
+    entityDate: payment.paymentDate,
+    amount: payment.amount,
+    docNumber: payment.paymentNumber,
+    partyName: order.outlet.name,
   });
 
   if (billId) {

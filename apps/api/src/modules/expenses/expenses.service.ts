@@ -6,9 +6,30 @@ import { buildPaginationMeta, toSkipTake } from '../../shared/utils/pagination';
 import { IST_AT, istRange } from '../../shared/utils/date';
 import { booksScopeFor } from '../../shared/utils/books';
 import type { AuthUser } from '../../shared/types/api';
+import { enqueueTallySync, markTallyDeleted } from '../tally/tally.outbox';
 import type { CreateExpenseInput, ExpenseSummaryQuery, ListExpensesQuery, UpdateExpenseInput } from './expenses.schema';
 
 const invalidate = () => cache.invalidateTags(CacheTag.EXPENSES, CacheTag.ANALYTICS, CacheTag.DASHBOARD);
+
+type ExpenseSyncRow = {
+  id: string; amount: Prisma.Decimal; expenseDate: Date; paidTo: string | null;
+  invoiceNumber: string | null; outletId: string | null; supplierBillId: string | null;
+};
+
+/** Enqueue (or re-enqueue) an expense for the Tally sync. Excluded when it is a
+ *  branch's own cost, or when it is already carried by a purchase bill's voucher. */
+async function enqueueExpenseSync(tx: Prisma.TransactionClient, e: ExpenseSyncRow): Promise<void> {
+  const excludedReason = e.supplierBillId
+    ? 'Line of a purchase bill — already posted with that bill’s Purchase voucher.'
+    : e.outletId
+      ? 'Branch expense — the outlet bears this cost; excluded from the company books.'
+      : null;
+  await enqueueTallySync(tx, {
+    entityType: 'EXPENSE', entityId: e.id, voucherType: 'PAYMENT',
+    entityDate: e.expenseDate, amount: e.amount,
+    docNumber: e.invoiceNumber, partyName: e.paidTo, excludedReason,
+  });
+}
 
 /** IST calendar window for expenseDate — half-open, so the final day isn't clipped. */
 function dateWindow(from?: Date, to?: Date): Prisma.ExpenseWhereInput {
@@ -65,10 +86,14 @@ export async function listExpenses(query: ListExpensesQuery, user: AuthUser) {
 export async function createExpense(input: CreateExpenseInput, user: AuthUser) {
   const category = await prisma.expenseCategory.findFirst({ where: { id: input.categoryId, isDeleted: false } });
   if (!category) throw AppError.badRequest('Invalid expense category', undefined, 'categoryId');
-  const expense = await prisma.expense.create({
-    // outletId comes from who is filing, never from the request body.
-    data: { ...input, ...booksScopeFor(user), createdById: user.id },
-    include: { category: { select: { id: true, name: true } } },
+  const expense = await prisma.$transaction(async (tx) => {
+    const created = await tx.expense.create({
+      // outletId comes from who is filing, never from the request body.
+      data: { ...input, ...booksScopeFor(user), createdById: user.id },
+      include: { category: { select: { id: true, name: true } } },
+    });
+    await enqueueExpenseSync(tx, created);
+    return created;
   });
   invalidate();
   return expense;
@@ -77,7 +102,11 @@ export async function createExpense(input: CreateExpenseInput, user: AuthUser) {
 export async function updateExpense(id: string, input: UpdateExpenseInput, user: AuthUser) {
   const existing = await prisma.expense.findFirst({ where: { id, isDeleted: false, ...booksScopeFor(user) } });
   if (!existing) throw AppError.notFound('Expense not found');
-  const expense = await prisma.expense.update({ where: { id }, data: input, include: { category: { select: { id: true, name: true } } } });
+  const expense = await prisma.$transaction(async (tx) => {
+    const updated = await tx.expense.update({ where: { id }, data: input, include: { category: { select: { id: true, name: true } } } });
+    await enqueueExpenseSync(tx, updated);
+    return updated;
+  });
   invalidate();
   return expense;
 }
@@ -85,7 +114,10 @@ export async function updateExpense(id: string, input: UpdateExpenseInput, user:
 export async function deleteExpense(id: string, user: AuthUser) {
   const existing = await prisma.expense.findFirst({ where: { id, isDeleted: false, ...booksScopeFor(user) } });
   if (!existing) throw AppError.notFound('Expense not found');
-  await prisma.expense.update({ where: { id }, data: { isDeleted: true } });
+  await prisma.$transaction(async (tx) => {
+    await tx.expense.update({ where: { id }, data: { isDeleted: true } });
+    await markTallyDeleted(tx, 'EXPENSE', id);
+  });
   invalidate();
   return { deleted: true };
 }

@@ -13,7 +13,57 @@ import { RealtimeEvent } from '../../sockets/events';
 import { env } from '../../config/env';
 import { gstinStateCode, splitGst } from '../../shared/utils/gst';
 import { assertQuantityPrecision } from '../../shared/utils/quantity';
+import { enqueueTallySync, markTallyDeleted } from '../tally/tally.outbox';
 import type { ListBatchesQuery, ListIntakeQuery, LogBatchInput, LogIntakeInput } from './production.schema';
+
+type SupplierBillRow = { id: string; billNumber: string; billDate: Date; totalAmount: Prisma.Decimal; isGstBill: boolean };
+type SupplierPaymentRow = { id: string; paymentNumber: string; paymentDate: Date; amount: Prisma.Decimal };
+
+/**
+ * Enqueue a Purchase voucher for the Tally sync — HARD-EXCLUDING the two cases
+ * that must never reach the client's statutory books:
+ *   • a non-GST purchase (unregistered / informal vendor);
+ *   • a branch's own purchase (outletId set) — already off the company books.
+ * The exclusion is enforced here in code, not left to config or to anyone
+ * remembering, and is recorded with a reason so the owner can see it was skipped
+ * on purpose (dashboard → Excluded view).
+ */
+async function enqueuePurchaseBillSync(
+  tx: Prisma.TransactionClient,
+  bill: SupplierBillRow,
+  supplierName: string | null,
+  outletId: string | null,
+): Promise<void> {
+  const excludedReason = !bill.isGstBill
+    ? 'Non-GST purchase — unregistered/informal vendor; recorded in the ERP for cost tracking only, never pushed to Tally.'
+    : outletId
+      ? 'Branch purchase — the outlet bears this cost; excluded from the company books.'
+      : null;
+  await enqueueTallySync(tx, {
+    entityType: 'PURCHASE_BILL', entityId: bill.id, voucherType: 'PURCHASE',
+    entityDate: bill.billDate, amount: bill.totalAmount, docNumber: bill.billNumber,
+    partyName: supplierName, excludedReason,
+  });
+}
+
+async function enqueuePurchasePaymentSync(
+  tx: Prisma.TransactionClient,
+  payment: SupplierPaymentRow,
+  bill: SupplierBillRow,
+  supplierName: string | null,
+  outletId: string | null,
+): Promise<void> {
+  const excludedReason = !bill.isGstBill
+    ? 'Payment against a non-GST purchase — excluded from Tally along with its bill.'
+    : outletId
+      ? 'Payment for a branch purchase — excluded from the company books.'
+      : null;
+  await enqueueTallySync(tx, {
+    entityType: 'SUPPLIER_PAYMENT', entityId: payment.id, voucherType: 'PAYMENT',
+    entityDate: payment.paymentDate, amount: payment.amount, docNumber: payment.paymentNumber,
+    partyName: supplierName, excludedReason,
+  });
+}
 
 /**
  * Log a production batch: consume the product's BOM (raw materials AND any
@@ -221,6 +271,14 @@ export async function logIntake(input: LogIntakeInput, userId: string) {
       where: { id: input.rawMaterialId },
       data: { currentStock: newStock, costPerUnit: weightedCost.toDecimalPlaces(2) },
     });
+    // A quick stock intake carries no bill and no GST detail, so it is never a
+    // Tally purchase voucher — record it EXCLUDED for the owner's audit view.
+    await enqueueTallySync(tx, {
+      entityType: 'RAW_INTAKE', entityId: created.id, voucherType: 'PURCHASE',
+      entityDate: created.intakeDate, amount: created.totalCost,
+      docNumber: created.invoiceNumber, partyName: created.supplierName,
+      excludedReason: 'Quick stock intake without a purchase bill — no GST detail; use a purchase bill for a GST purchase.',
+    });
     return created;
   });
 
@@ -250,9 +308,9 @@ type PurchaseItem = PurchaseInput['items'][number];
  * only enriched with details it was missing — a user-curated name/GSTIN is
  * never overwritten.
  */
-async function upsertSupplierContact(input: PurchaseInput, userId: string): Promise<void> {
+async function upsertSupplierContact(input: PurchaseInput, userId: string): Promise<string | null> {
   const name = input.supplierName?.trim();
-  if (!name) return; // Contact needs a name; nothing to remember without one.
+  if (!name) return null; // Contact needs a name; nothing to remember without one.
   const gstin = input.supplierGstin?.trim() || null;
   const stateCode = gstin ? gstinStateCode(gstin) : null;
   const stateName = input.supplierStateName?.trim() || null;
@@ -274,14 +332,27 @@ async function upsertSupplierContact(input: PurchaseInput, userId: string): Prom
       if (stateCode && !existing.stateCode) data.stateCode = stateCode;
       if (stateName && !existing.stateName) data.stateName = stateName;
       if (Object.keys(data).length) await prisma.contact.update({ where: { id: existing.id }, data });
-      return;
+      return existing.id;
     }
 
-    await prisma.contact.create({
+    const created = await prisma.contact.create({
       data: { type: ContactType.SUPPLIER, name, gstin, stateCode, stateName, createdById: userId },
     });
+    return created.id;
   } catch (err) {
     logger.warn({ err }, 'Failed to auto-save supplier contact from purchase');
+    return null;
+  }
+}
+
+/** Post-commit: tie the purchase bill to its supplier's party-master row, so the
+ *  Tally sync maps it to one Sundry Creditor ledger regardless of name spelling. */
+async function linkSupplierContact(billId: string, contactId: string | null): Promise<void> {
+  if (!contactId) return;
+  try {
+    await prisma.supplierBill.update({ where: { id: billId }, data: { supplierContactId: contactId } });
+  } catch (err) {
+    logger.warn({ err, billId }, 'Failed to link supplier contact to purchase bill');
   }
 }
 
@@ -507,19 +578,23 @@ export async function logPurchase(input: PurchaseInput, user: AuthUser) {
 
     // 3) Initial supplier payment (if anything paid at entry).
     if (paidNow.greaterThan(0)) {
-      await tx.supplierPayment.create({
+      const sp = await tx.supplierPayment.create({
         data: {
           paymentNumber: await nextDocNumber(tx, 'SUPPLIER_PAYMENT'),
           supplierBillId: bill.id, amount: paidNow, method: input.paymentMethod,
           paymentDate: input.intakeDate, paidById: userId, createdById: userId,
         },
       });
+      await enqueuePurchasePaymentSync(tx, sp, bill, input.supplierName ?? null, outletId);
     }
+
+    // 4) Tally: Purchase voucher — GST bills only, head-office books only.
+    await enqueuePurchaseBillSync(tx, bill, input.supplierName ?? null, outletId);
 
     return { bill, ...counts };
   });
 
-  await upsertSupplierContact(input, userId);
+  await linkSupplierContact(result.bill.id, await upsertSupplierContact(input, userId));
   cache.invalidateTags(CacheTag.INVENTORY, CacheTag.EXPENSES, CacheTag.PAYMENTS, CacheTag.ANALYTICS, CacheTag.ASSETS, CacheTag.DASHBOARD);
   return {
     billNumber: result.bill.billNumber,
@@ -618,6 +693,10 @@ export async function updatePurchase(id: string, input: PurchaseInput, user: Aut
 
   const result = await prisma.$transaction(async (tx) => {
     await reversePurchaseEffects(tx, id);
+    // The old at-entry payment is about to be replaced with a new id — cancel its
+    // Tally voucher before it's deleted.
+    const oldPayments = await tx.supplierPayment.findMany({ where: { supplierBillId: id }, select: { id: true } });
+    for (const p of oldPayments) await markTallyDeleted(tx, 'SUPPLIER_PAYMENT', p.id);
     await tx.supplierPayment.deleteMany({ where: { supplierBillId: id } });
 
     const balance = billTotal.sub(paidNow);
@@ -650,19 +729,22 @@ export async function updatePurchase(id: string, input: PurchaseInput, user: Aut
     const counts = await applyPurchaseLines(tx, bill.id, prepared, input, userId, outletId);
 
     if (paidNow.greaterThan(0)) {
-      await tx.supplierPayment.create({
+      const sp = await tx.supplierPayment.create({
         data: {
           paymentNumber: await nextDocNumber(tx, 'SUPPLIER_PAYMENT'),
           supplierBillId: bill.id, amount: paidNow, method: input.paymentMethod,
           paymentDate: input.intakeDate, paidById: userId, createdById: userId,
         },
       });
+      await enqueuePurchasePaymentSync(tx, sp, bill, input.supplierName ?? null, outletId);
     }
+
+    await enqueuePurchaseBillSync(tx, bill, input.supplierName ?? null, outletId);
 
     return { bill, ...counts };
   });
 
-  await upsertSupplierContact(input, userId);
+  await linkSupplierContact(id, await upsertSupplierContact(input, userId));
   cache.invalidateTags(CacheTag.INVENTORY, CacheTag.EXPENSES, CacheTag.PAYMENTS, CacheTag.ANALYTICS, CacheTag.ASSETS, CacheTag.DASHBOARD);
   return {
     billNumber: result.bill.billNumber,
@@ -692,6 +774,10 @@ export async function deletePurchase(id: string, user: AuthUser) {
     const bill = await tx.supplierBill.findFirst({ where: { id, isDeleted: false, outletId }, select: { billNumber: true } });
     if (!bill) throw AppError.notFound('Purchase bill not found');
     await reversePurchaseEffects(tx, id);
+    // Cancel the bill's + payments' Tally vouchers (no-op if they were EXCLUDED).
+    await markTallyDeleted(tx, 'PURCHASE_BILL', id);
+    const pmts = await tx.supplierPayment.findMany({ where: { supplierBillId: id }, select: { id: true } });
+    for (const p of pmts) await markTallyDeleted(tx, 'SUPPLIER_PAYMENT', p.id);
     await tx.supplierPayment.deleteMany({ where: { supplierBillId: id } });
 
     const seq = Number.parseInt(bill.billNumber.split('-').pop() ?? '', 10);

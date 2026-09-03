@@ -13,6 +13,9 @@ import { istRange } from '../../shared/utils/date';
 import { emitRealtime } from '../../sockets/realtime';
 import { RealtimeEvent } from '../../sockets/events';
 import { enqueue, JobName } from '../../jobs/queue';
+import { env } from '../../config/env';
+import { splitGst } from '../../shared/utils/gst';
+import { enqueueTallySync, markTallyDeleted } from '../tally/tally.outbox';
 import type { AuthUser } from '../../shared/types/api';
 import { removeBillPdf } from './billing.storage';
 import type { CreateManualBillInput, ListBillsQuery } from './billing.schema';
@@ -61,7 +64,14 @@ export async function createBillForOrderTx(
   const otherChargesTotal = (charges ?? []).reduce((s, c) => s.add(new Prisma.Decimal(c.amount)), new Prisma.Decimal(0));
   const grandTotal = subTotal.add(taxTotal).add(otherChargesTotal);
 
-  return tx.bill.create({
+  // GST split snapshotted at bill time, for the Tally sync. Place of supply is the
+  // outlet's GSTIN state right now (home state if it has no GSTIN on file).
+  const placeOfSupplyStateCode = order.outlet.gstin?.slice(0, 2) || env.HOME_STATE_CODE;
+  const { cgst, sgst, igst } = order.isGstBill
+    ? splitGst(Number(taxTotal), placeOfSupplyStateCode, env.HOME_STATE_CODE)
+    : { cgst: 0, sgst: 0, igst: 0 };
+
+  const bill = await tx.bill.create({
     data: {
       billNumber,
       outletId: order.outletId,
@@ -70,6 +80,8 @@ export async function createBillForOrderTx(
       dueDate: addDays(now, order.outlet.creditPeriodDays),
       subTotal,
       taxTotal,
+      cgst, sgst, igst,
+      placeOfSupplyStateCode,
       otherChargesTotal,
       grandTotal,
       amountPaid: 0,
@@ -83,6 +95,18 @@ export async function createBillForOrderTx(
     },
     include: { items: true, charges: true, outlet: { select: { name: true } } },
   });
+
+  await enqueueTallySync(tx, {
+    entityType: 'SALES_BILL',
+    entityId: bill.id,
+    voucherType: 'SALES',
+    entityDate: now,
+    amount: grandTotal,
+    docNumber: bill.billNumber,
+    partyName: bill.outlet.name,
+  });
+
+  return bill;
 }
 
 /** Post-commit side effects: async PDF generation + realtime notification. */
@@ -243,7 +267,7 @@ export async function getItemSalesReport(productId: string, from?: Date, to?: Da
 export async function updateBillCharges(user: AuthUser, id: string, charges: Array<{ label: string; amount: number }>) {
   const bill = await prisma.bill.findFirst({
     where: { id, isDeleted: false },
-    select: { id: true, billNumber: true, outletId: true, subTotal: true, taxTotal: true, amountPaid: true },
+    select: { id: true, billNumber: true, billDate: true, outletId: true, subTotal: true, taxTotal: true, amountPaid: true },
   });
   if (!bill) throw AppError.notFound('Bill not found');
 
@@ -277,6 +301,11 @@ export async function updateBillCharges(user: AuthUser, id: string, charges: Arr
         status,
         charges: charges.length ? { create: charges.map((c) => ({ label: c.label, amount: c.amount })) } : undefined,
       },
+    });
+    // Charges change the invoice total → the Tally voucher must be reposted.
+    await enqueueTallySync(tx, {
+      entityType: 'SALES_BILL', entityId: id, voucherType: 'SALES',
+      entityDate: bill.billDate, amount: grandTotal, docNumber: bill.billNumber,
     });
   });
 
@@ -479,6 +508,8 @@ export async function deleteBill(user: AuthUser, id: string) {
       where: { id: bill.id },
       data: { status: BillStatus.CANCELLED, balanceDue: 0, isDeleted: true },
     });
+    // If this bill's Sales voucher already reached Tally, cancel it there.
+    await markTallyDeleted(tx, 'SALES_BILL', bill.id);
     if (bill.orderId) {
       await tx.outletOrder.update({
         where: { id: bill.orderId },

@@ -3,6 +3,7 @@ import { prisma } from '../../config/prisma';
 import { cache, CacheTag } from '../../config/cache';
 import { AppError } from '../../shared/utils/AppError';
 import { nextDocNumber } from '../../shared/utils/docNumber';
+import { enqueueTallySync, markTallyDeleted } from '../tally/tally.outbox';
 import { computePayroll, payableDaysFor } from './payroll.calc';
 import { applyAdvanceRecoveryTx, outstandingAdvanceBalance, reverseAdvanceRecoveryTx } from './advances.service';
 import type {
@@ -316,6 +317,12 @@ export async function markPayrollPaid(id: string, input: MarkPaidInput, userId: 
       },
       select: { id: true },
     });
+    // Payment voucher — Dr Salaries, Cr Cash/Bank.
+    await enqueueTallySync(tx, {
+      entityType: 'EXPENSE', entityId: expense.id, voucherType: 'PAYMENT',
+      entityDate: input.paymentDate, amount: row.netSalary,
+      docNumber: null, partyName: row.employee.name,
+    });
     // Only now — the money is actually leaving — does the deduction shown on this
     // payslip actually reduce what the employee still owes.
     await applyAdvanceRecoveryTx(tx, row.employeeId, id, new Prisma.Decimal(row.advanceRecovery));
@@ -348,7 +355,10 @@ export async function revertPayrollPayment(id: string) {
       data: { status: PayrollStatus.PENDING, paymentDate: null, expenseId: null },
       select: payrollSelect,
     });
-    if (row.expenseId) await tx.expense.delete({ where: { id: row.expenseId } });
+    if (row.expenseId) {
+      await markTallyDeleted(tx, 'EXPENSE', row.expenseId);
+      await tx.expense.delete({ where: { id: row.expenseId } });
+    }
     return updated;
   });
 
