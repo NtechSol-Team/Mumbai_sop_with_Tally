@@ -14,10 +14,10 @@
     "prisma:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
     "prisma:reset": "dotenv -e ../../.env -- prisma migrate reset",
     "prisma:studio": "dotenv -e ../../.env -- prisma studio",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
