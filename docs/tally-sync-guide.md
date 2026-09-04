@@ -184,11 +184,33 @@ match the client's actual chart of accounts.
 
 ### Fresh Tally vs existing Tally
 
-- **Fresh company:** create the ledgers in Tally first (the accountant does this
-  in Tally, or imports a starter list), then enter those names here.
 - **Existing company:** just type the names you already use. The sync **never
-  creates a ledger itself** — a voucher that names an unknown ledger fails with
-  Tally's own message and waits for you to fix the mapping and retry.
+  creates a ledger itself by default** — a voucher that names an unknown ledger
+  fails with Tally's own message and waits for you to fix the mapping and retry.
+- **Fresh company:** either create the ledgers by hand, or turn on
+  **auto-provisioning** (below) so the agent does most of it for you.
+
+### Auto-provisioning (fresh / test companies only)
+
+**Tally Sync → Settings → "Let the agent create missing ledgers in Tally
+itself."** OFF by default. Turn it **ON** for a fresh or throwaway company and
+the agent will, on its next cycle, create every mapped ledger that doesn't
+exist yet — every outlet's debtor, every supplier's creditor, and the sales /
+purchase / expense / bank / round-off / discount ledgers — using the exact
+pre-filled names, with GSTIN/address/state filled in for party ledgers where
+known.
+
+**It deliberately skips the 6 GST ledgers** (Output/Input CGST/SGST/IGST).
+Their "Type of duty/tax" setup is the one place Tally's format varies enough
+across versions that its own ledger wizard is the safer way to create them —
+create those 6 yourself (two minutes, see the table above).
+
+The **Ledger Mapping** table shows a **Confirmed / Not yet** column — flips to
+Confirmed the moment the agent creates (or finds) that ledger in Tally.
+
+Turn this **off** again once you're working with a real client's books, unless
+you specifically want every new outlet/supplier to get its ledger created
+automatically without review.
 
 ---
 
