@@ -29,12 +29,25 @@ console.log(`Mumbai ERP Tally Sync Agent (headless)
   Poll:  every ${c.pollSeconds}s
 `);
 
+function ledgerBit(s) {
+  // Always say SOMETHING about ledger provisioning, never stay silent about it —
+  // "0 candidates" almost always means the toggle is off, which is easy to miss
+  // if this line just disappears.
+  if (!s.tallyOk) return null;
+  if (s.ledgerCandidates === 0) return 'ledgers: none pending (auto-provision off, or nothing left to create)';
+  const bits = [];
+  if (s.ledgerCreated) bits.push(`${s.ledgerCreated} created`);
+  if (s.ledgerExists) bits.push(`${s.ledgerExists} already existed`);
+  if (s.ledgerFailed) bits.push(`${s.ledgerFailed} FAILED`);
+  return `ledgers: ${bits.join(', ')} (of ${s.ledgerCandidates} pending)`;
+}
+
 function line(s) {
   const t = new Date().toLocaleTimeString();
   const bits = [
     `ERP ${s.erpOk ? 'ok' : 'DOWN'}`,
     `Tally ${s.tallyOk ? 'ok' : 'not responding'}`,
-    s.provisioned ? `ledgers created ${s.provisioned}` : null,
+    ledgerBit(s),
     s.pushed ? `pushed ${s.pushed}` : null,
     s.failed ? `failed ${s.failed}` : null,
     s.lastError ? `— ${s.lastError}` : null,
