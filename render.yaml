@@ -20,7 +20,9 @@ services:
       npx prisma generate --schema=apps/api/prisma/schema.prisma &&
       npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma &&
       npm run api:build
-    startCommand: node apps/api/dist/server.js
+    # npm runs workspace scripts with apps/api as cwd, matching the API's asset
+    # and storage path assumptions.
+    startCommand: npm run start --workspace @mumbai-erp/api
     initialDeployHook: npx tsx apps/api/prisma/seed.ts
     healthCheckPath: /health
     envVars:
