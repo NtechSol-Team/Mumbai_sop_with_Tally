@@ -26,6 +26,12 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Render otherwise performs an implicit production-only npm install before
+      # buildCommand, which cannot run the root patch-package postinstall.
+      - key: SKIP_INSTALL_DEPS
+        value: "true"
+      - key: NODE_VERSION
+        value: 20.19.5
       - key: PORT
         value: 4000
       - key: API_PORT
@@ -56,6 +62,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: SKIP_INSTALL_DEPS
+        value: "true"
+      - key: NODE_VERSION
+        value: 20.19.5
       - key: STATIC_EXPORT
         value: "true"
       - key: NEXT_PUBLIC_API_URL
