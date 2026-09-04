@@ -252,6 +252,95 @@ defaults are the recommended treatment; the notes below flag what to confirm.
 
 ---
 
+## 8a. Checking things inside Tally (step by step)
+
+Everything below is done in **TallyPrime on the Tally PC**, with the company
+loaded. `Alt+G` is "Go To" — it works from anywhere and is the fastest route.
+
+### Confirm you're in the right company
+
+Look at the top of the Tally window — the company name is shown there. It must
+match the `TALLY_COMPANY` value in `start-agent.bat` **exactly**. If it doesn't:
+`Alt+F3` → *Select Company* → pick the right one.
+
+### See every ledger that exists
+
+1. Press **Alt+G**.
+2. Type **`Chart of Accounts`** and press **Enter**.
+3. Choose **Ledgers**, press **Enter**.
+
+You get the full list. Press **Enter** on any ledger to open it (Esc to back out
+without changing anything).
+
+To see them **organised by group** instead — which is what you want when
+checking the sync's ledgers — pick **Groups** at step 3, then drill into
+*Sundry Debtors*, *Sales Accounts*, and so on.
+
+Other routes to the same place:
+- **Gateway of Tally → Chart of Accounts → Ledgers**
+- **Alt+G → `List of Ledgers`**
+- To check one name quickly: **Gateway of Tally → Alter → Ledger** — the picker
+  lists what exists, so if a name isn't in it, it wasn't created.
+
+### What should be there after provisioning
+
+| Group | Expected ledgers |
+|---|---|
+| Sundry Debtors | one per franchise outlet, plus `Counter Sales` |
+| Sundry Creditors | one per GST supplier you've entered a purchase for |
+| Sales Accounts | `Sales - Franchise`, `Sales - Counter`, `Sales - Non-GST` |
+| Purchase Accounts | `Purchase - Raw Material`, `Purchase - Packing Material`, `Purchase - Traded Goods` |
+| Bank Accounts | `Bank - Current A/c`, `Razorpay Clearing` |
+| Cash-in-Hand | `Cash` |
+| Indirect Expenses | `Round Off`, `Discount Allowed`, `Bank & PG Charges`, + your expense categories |
+| Direct Expenses | your factory/godown expense categories |
+| Fixed Assets | `Plant & Equipment` |
+| Current Liabilities | `Outstanding Expenses` |
+
+This check is worth doing rather than trusting the agent's "already existed"
+count: that count comes from Tally silently accepting a create for a master it
+already has, and in rare cases Tally goes quiet for a different reason. Anything
+genuinely missing shows up later as a `ledger does not exist` failure on the
+first voucher that needs it.
+
+### Create the 6 GST ledgers (by hand, on purpose)
+
+The agent never creates these — Tally's own wizard handles the duty/tax fields
+more reliably than generated XML. Do each of the six:
+
+1. **Alt+G** → type **`Create Ledger`** → **Enter** (or Gateway of Tally →
+   *Create* → *Ledger*).
+2. **Name**: `Output CGST` (then repeat for the other five).
+3. **Under**: start typing `Dut` and pick **Duties & Taxes**.
+4. **Type of duty/tax**: **GST**.
+5. **Tax type**: `Central Tax` for CGST · `State Tax` for SGST ·
+   `Integrated Tax` for IGST.
+6. Leave *Percentage of calculation* / *Rounding method* at their defaults — the
+   ERP sends the exact tax amount, it does not ask Tally to calculate it.
+7. **Ctrl+A** to save.
+
+The six: `Output CGST`, `Output SGST`, `Output IGST`, `Input CGST`,
+`Input SGST`, `Input IGST`.
+
+### See a voucher the sync actually posted
+
+1. **Alt+G** → type **`Day Book`** → **Enter**. It opens on today.
+2. **F2** changes the date; **Alt+F2** sets a date range.
+3. **Enter** on a voucher opens it — check the debit and credit lines and the
+   GST amounts against the bill in the ERP.
+
+To see one party's activity instead: **Alt+G** → `Ledger Vouchers` → pick the
+outlet's ledger. That shows every voucher hitting that outlet and its running
+balance — the same figure the ERP shows as their outstanding.
+
+### If a voucher is missing from Tally
+
+Check the ERP's **Sync Dashboard** first — if it says *In Tally* but you can't
+find it, you're almost certainly looking at the wrong company or the wrong date
+in the Day Book. If it says *Failed*, the row carries Tally's own error text.
+
+---
+
 ## 9. Part 7 — Day to day: the Sync Dashboard
 
 **Mumbai ERP → Tally Sync → Sync Dashboard.** Every synced transaction shows up
