@@ -53,6 +53,9 @@ function line(s) {
     s.lastError ? `— ${s.lastError}` : null,
   ].filter(Boolean).join(' · ');
   console.log(`[${t}] ${bits}`);
+  // Tally's own words for the first few failures — without these you are just
+  // staring at a count, which is not debuggable.
+  for (const f of s.ledgerFailures || []) console.log(`           ledger failed -> ${f}`);
 }
 
 if (once) {

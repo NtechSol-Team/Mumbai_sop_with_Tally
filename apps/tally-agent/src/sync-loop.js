@@ -4,7 +4,7 @@ const config = require('./config');
 const erp = require('./erp-client');
 const tally = require('./tally-client');
 const { messagesFor } = require('./xml');
-const { buildLedgerEnvelope, isAlreadyExists } = require('./ledger-xml');
+const { buildLedgerMessages, isAlreadyExists } = require('./ledger-xml');
 
 /**
  * The loop:
@@ -24,7 +24,7 @@ const state = {
   erpOk: false, tallyOk: false, lastRun: null, lastError: null, pushed: 0, failed: 0,
   // Ledger auto-provisioning, reported every cycle (not just when something happened) —
   // so "toggle is off" / "nothing left to do" / "created 5" are all visible, not silent.
-  ledgerCandidates: 0, ledgerCreated: 0, ledgerExists: 0, ledgerFailed: 0, provisioned: 0,
+  ledgerCandidates: 0, ledgerCreated: 0, ledgerExists: 0, ledgerFailed: 0, ledgerFailures: [], provisioned: 0,
 };
 let onChange = () => {};
 
@@ -35,24 +35,33 @@ let onChange = () => {};
  * sales/purchase/expense/bank — never the GST duty ledgers) directly in Tally,
  * and reports each outcome. "Already exists" counts as success, not a failure.
  */
+async function provisionOne(ledger, company) {
+  let lastError = null;
+  for (const attempt of buildLedgerMessages(ledger, company)) {
+    const result = await tally.send(attempt.xml);
+    if (result.ok) return { id: ledger.id, status: 'CREATED' };
+    if (isAlreadyExists(result.error)) return { id: ledger.id, status: 'EXISTS' };
+    lastError = result.error;
+  }
+  return { id: ledger.id, status: 'FAILED', error: lastError, ledgerName: ledger.name };
+}
+
 async function provisionLedgers(company) {
   const ledgers = await erp.ledgersPending();
-  if (!ledgers.length) return { candidates: 0, created: 0, exists: 0, failed: 0 };
+  if (!ledgers.length) return { candidates: 0, created: 0, exists: 0, failed: 0, failures: [] };
 
   const results = [];
-  for (const l of ledgers) {
-    const xml = buildLedgerEnvelope(l, company);
-    const result = await tally.send(xml);
-    if (result.ok) results.push({ id: l.id, status: 'CREATED' });
-    else if (isAlreadyExists(result.error)) results.push({ id: l.id, status: 'EXISTS' });
-    else results.push({ id: l.id, status: 'FAILED', error: result.error, ledger: l.tallyLedgerName });
-  }
+  for (const l of ledgers) results.push(await provisionOne(l, company));
+
   await erp.reportLedgerResults(results);
+  const failures = results.filter((r) => r.status === 'FAILED');
   return {
     candidates: ledgers.length,
     created: results.filter((r) => r.status === 'CREATED').length,
     exists: results.filter((r) => r.status === 'EXISTS').length,
-    failed: results.filter((r) => r.status === 'FAILED').length,
+    failed: failures.length,
+    // Carried up so the console can show WHY, not just how many.
+    failures: failures.slice(0, 3).map((f) => `${f.ledgerName}: ${f.error}`),
   };
 }
 
@@ -96,6 +105,7 @@ async function runOnce() {
     state.ledgerCreated = prov.created;
     state.ledgerExists = prov.exists;
     state.ledgerFailed = prov.failed;
+    state.ledgerFailures = prov.failures;
     state.provisioned = prov.created + prov.exists;
 
     const batch = await erp.pullPending(25);

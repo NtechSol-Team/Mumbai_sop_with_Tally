@@ -86,7 +86,10 @@ const FIXED_SEEDS: SeedRow[] = [
   { slot: 'PURCHASE', slotKey: 'PACKING', slotLabel: 'Packing material purchases', tallyLedgerName: 'Purchase - Packing Material', tallyParentGroup: 'Purchase Accounts' },
   { slot: 'PURCHASE', slotKey: 'TRADED_GOODS', slotLabel: 'Traded / finished goods purchases', tallyLedgerName: 'Purchase - Traded Goods', tallyParentGroup: 'Purchase Accounts' },
   // Bank / cash by payment method
-  { slot: 'BANK_CASH', slotKey: 'CASH', slotLabel: 'Cash', tallyLedgerName: 'Cash-in-Hand', tallyParentGroup: 'Cash-in-Hand' },
+  // "Cash" not "Cash-in-Hand": Tally will not let a LEDGER share a name with an
+  // existing GROUP, and Cash-in-Hand is a built-in group. "Cash" is also the
+  // ledger Tally itself creates by default, so this usually matches out of the box.
+  { slot: 'BANK_CASH', slotKey: 'CASH', slotLabel: 'Cash', tallyLedgerName: 'Cash', tallyParentGroup: 'Cash-in-Hand' },
   { slot: 'BANK_CASH', slotKey: 'UPI', slotLabel: 'UPI', tallyLedgerName: 'Bank - Current A/c', tallyParentGroup: 'Bank Accounts' },
   { slot: 'BANK_CASH', slotKey: 'CARD', slotLabel: 'Card', tallyLedgerName: 'Bank - Current A/c', tallyParentGroup: 'Bank Accounts' },
   { slot: 'BANK_CASH', slotKey: 'NET_BANKING', slotLabel: 'Net banking', tallyLedgerName: 'Bank - Current A/c', tallyParentGroup: 'Bank Accounts' },
@@ -98,7 +101,8 @@ const FIXED_SEEDS: SeedRow[] = [
   { slot: 'SPECIAL', slotKey: 'FREIGHT_RECOVERED', slotLabel: 'Freight / packing recovered', tallyLedgerName: 'Freight & Packing Recovered', tallyParentGroup: 'Indirect Incomes' },
   { slot: 'SPECIAL', slotKey: 'PG_CHARGES', slotLabel: 'Payment-gateway charges', tallyLedgerName: 'Bank & PG Charges', tallyParentGroup: 'Indirect Expenses' },
   { slot: 'SPECIAL', slotKey: 'CASH_SALES_PARTY', slotLabel: 'Counter-sale customer', tallyLedgerName: 'Counter Sales', tallyParentGroup: 'Sundry Debtors' },
-  { slot: 'SPECIAL', slotKey: 'FIXED_ASSETS', slotLabel: 'Fixed assets (capital purchase lines)', tallyLedgerName: 'Fixed Assets', tallyParentGroup: 'Fixed Assets' },
+  // Same group-name collision as Cash above — "Fixed Assets" is a built-in group.
+  { slot: 'SPECIAL', slotKey: 'FIXED_ASSETS', slotLabel: 'Fixed assets (capital purchase lines)', tallyLedgerName: 'Plant & Equipment', tallyParentGroup: 'Fixed Assets' },
   { slot: 'SPECIAL', slotKey: 'OUTSTANDING_EXPENSES', slotLabel: 'Outstanding expenses (accrued, unpaid)', tallyLedgerName: 'Outstanding Expenses', tallyParentGroup: 'Current Liabilities' },
 ];
 

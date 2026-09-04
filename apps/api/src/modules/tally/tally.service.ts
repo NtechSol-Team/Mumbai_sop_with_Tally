@@ -203,9 +203,17 @@ export async function agentLedgersPending() {
 export async function agentReportLedgerResults(results: Array<{ id: string; status: 'CREATED' | 'EXISTS' | 'FAILED'; error?: string }>) {
   const ok = results.filter((r) => r.status !== 'FAILED');
   if (ok.length) {
-    await prisma.tallyLedgerMap.updateMany({ where: { id: { in: ok.map((r) => r.id) } }, data: { validatedAt: new Date() } });
+    await prisma.tallyLedgerMap.updateMany({
+      where: { id: { in: ok.map((r) => r.id) } },
+      data: { validatedAt: new Date(), notes: null },
+    });
   }
+  // Keep Tally's own reason ON THE ROW, not just in the server log — the owner
+  // needs to read it on the Ledger Mapping screen to know what to fix.
   for (const r of results.filter((x) => x.status === 'FAILED')) {
+    await prisma.tallyLedgerMap
+      .update({ where: { id: r.id }, data: { notes: `Tally rejected this ledger: ${r.error ?? 'no reason given'}`.slice(0, 300) } })
+      .catch((e) => logger.warn({ e, ledgerMapId: r.id }, 'tally: could not store ledger failure note'));
     logger.warn({ ledgerMapId: r.id, error: r.error }, 'tally: ledger provisioning failed');
   }
   return { created: ok.length, failed: results.length - ok.length };
