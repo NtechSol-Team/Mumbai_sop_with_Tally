@@ -27,8 +27,8 @@ if errorlevel 1 (
   goto :end
 )
 
-node -v
-npm -v
+call node -v
+call npm -v
 echo.
 
 if not exist "node_modules\xmlbuilder2" (
@@ -45,7 +45,7 @@ echo   ERP:   %MUMBAI_ERP_URL%
 echo   Tally: %TALLY_HOST%:%TALLY_PORT%
 echo Press Ctrl+C to stop.
 echo.
-node src\run-headless.js
+call node src\run-headless.js
 if errorlevel 1 (
   echo.
   echo [ERROR] The agent exited with an error. See the messages above.
