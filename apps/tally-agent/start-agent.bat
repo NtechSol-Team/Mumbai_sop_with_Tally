@@ -9,7 +9,7 @@ REM  2. Make sure Node 20+ is installed and `npm install --omit=dev`
 REM     has been run once in this folder.
 REM ─────────────────────────────────────────────────────────────────────
 
-set "MUMBAI_ERP_URL=https://api.your-mumbai-erp-domain.com"
+set "MUMBAI_ERP_URL=https://mumbai-erp-ntechsol-api.onrender.com"
 set "MUMBAI_ERP_TOKEN=mea_PASTE_YOUR_TOKEN_HERE"
 set "TALLY_HOST=localhost"
 set "TALLY_PORT=9000"
