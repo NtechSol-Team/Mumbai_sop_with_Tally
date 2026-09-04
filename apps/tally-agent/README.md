@@ -42,7 +42,40 @@ An edited transaction is sent as *delete-then-recreate* keyed on the ERP referen
 4. Back in Mumbai ERP, finish the **Ledger Mapping**, set the go-live cutover date,
    then turn **Sync ON**.
 
-## Build
+## Running it
+
+### Option A — from source on the Tally PC (recommended, no installer)
+
+Fastest and most reliable. On the Windows machine that has Tally (Node 20+ and Git installed):
+
+```
+git clone <repo>  (or copy the repo folder over)
+cd apps/tally-agent
+npm install --omit=dev
+```
+
+**Headless** (no window — best for a background service). Edit the four values at
+the top of `start-agent.bat` and double-click it, or:
+
+```
+set MUMBAI_ERP_URL=https://api.your-domain.com
+set MUMBAI_ERP_TOKEN=mea_xxxxxxxx
+set TALLY_COMPANY=Your Company Name As In Tally
+node src\run-headless.js
+```
+
+To run at login: put a shortcut to `start-agent.bat` in
+`shell:startup`, or add it as a Task Scheduler task ("At log on", "Run whether
+user is logged on or not").
+
+**Tray app** instead of headless: `npm install` (with dev deps, pulls Electron)
+then `npm start`.
+
+### Option B — build the installer
+
+The NSIS installer **must be built on Windows** (or a Windows CI runner) —
+cross-building it from macOS produces a broken install (dangling Start-Menu
+shortcut). On Windows:
 
 ```
 cd apps/tally-agent
@@ -50,7 +83,8 @@ npm install
 npm run dist        # → dist/Mumbai ERP Tally Sync Agent-Setup-<version>.exe
 ```
 
-The installer auto-launches the agent at login and pins it to the system tray.
+It auto-launches at login and pins to the system tray. Windows SmartScreen will
+warn about the unsigned exe — *More info → Run anyway*, or sign it.
 
 ## Notes on TallyPrime compatibility
 

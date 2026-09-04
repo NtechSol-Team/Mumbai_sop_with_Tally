@@ -83,43 +83,60 @@ default.
 
 ---
 
-## 4. Part 2 — Install the Sync Agent (on the Tally PC)
+## 4. Part 2 — Run the Sync Agent (on the Tally PC)
 
-### Build the installer
+The reliable way is to run it **from source on the Tally PC**. A packaged `.exe`
+installer is possible too, but it must be built on Windows (see the end of this
+section) — cross-building it from a Mac produces a broken install (a Start-Menu
+shortcut that points at nothing).
 
-On any Windows machine with Node 20+ installed:
+### From source — headless (recommended for a background service)
 
-```
-cd apps/tally-agent
-npm install
-npm run dist
-```
-
-This produces `apps/tally-agent/dist/Mumbai ERP Tally Sync Agent-Setup-1.0.0.exe`.
-
-### Install it
-
-Copy that `.exe` to the Tally PC and run it. It:
-
-- installs to the user's profile (no admin prompt),
-- starts automatically at every login,
-- sits in the **system tray** (bottom-right, near the clock).
-
-Right-click the tray icon for **Sync now**, **Settings…**, and **Quit**.
-
-### Running without the tray (optional)
-
-The agent can also run headless — useful for testing, or to run it as a Windows
-service:
+On the Windows PC that runs Tally, with **Node 20+** and **Git** installed:
 
 ```
-cd apps/tally-agent
+git clone <your repo url> mumbai-erp        (or copy the repo folder over)
+cd mumbai-erp\apps\tally-agent
 npm install --omit=dev
+```
+
+Then open **`start-agent.bat`**, fill in the four values at the top
+(ERP URL, the `mea_…` token from Part 3, and your Tally company name), save, and
+**double-click it**. A console window shows the agent's status every 20 seconds.
+
+To start it automatically at login: put a shortcut to `start-agent.bat` in the
+Startup folder (`Win+R` → `shell:startup`), or add it as a **Task Scheduler**
+task ("At log on").
+
+Equivalent without the `.bat`:
+
+```
 set MUMBAI_ERP_URL=https://api.your-mumbai-erp-domain.com
 set MUMBAI_ERP_TOKEN=mea_xxxxxxxx
-set TALLY_COMPANY=Your Company Name As In Tally
-node src/run-headless.js
+set TALLY_COMPANY=Your Company Name Exactly As In Tally
+node src\run-headless.js
 ```
+
+### From source — tray app
+
+If you'd rather have a system-tray icon with a Settings window:
+
+```
+cd mumbai-erp\apps\tally-agent
+npm install            (with dev deps — pulls Electron, ~150 MB)
+npm start
+```
+
+### Building the `.exe` installer (optional, Windows only)
+
+```
+cd apps\tally-agent
+npm install
+npm run dist           →  dist\Mumbai ERP Tally Sync Agent-Setup-1.0.0.exe
+```
+
+Must run on Windows or a Windows CI runner. Windows SmartScreen will warn about
+the unsigned installer — *More info → Run anyway*, or code-sign it.
 
 ---
 
