@@ -20,4 +20,7 @@ RUN npm run web:build
 
 WORKDIR /repo/apps/web
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+# The port is pinned here rather than reused from package.json's "start": that
+# script carries a local-dev port (3100), and inheriting it silently broke the
+# Caddy upstream (web:3000) once dev moved ports. Production owns its own port.
+CMD ["npx", "next", "start", "-p", "3000"]

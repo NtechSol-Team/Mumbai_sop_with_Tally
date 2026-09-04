@@ -2,6 +2,11 @@
 # Built from the monorepo root context: docker build -f apps/api/Dockerfile .
 FROM node:20-alpine
 
+# Prisma probes the `openssl` binary to pick its engine. Alpine ships libssl.so.3
+# but not that binary, so detection silently falls back to an openssl-1.1.x engine
+# that then cannot load at runtime ("Could not parse schema engine response").
+RUN apk add --no-cache openssl
+
 WORKDIR /repo
 
 # Install with the lockfile first so dependency layers cache across code changes.
