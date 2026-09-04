@@ -40,4 +40,9 @@ const pullPending = (limit = 25) =>
 const reportResults = (results) =>
   call('/results', { method: 'POST', body: { results } });
 
-module.exports = { heartbeat, pullPending, reportResults };
+const ledgersPending = () => call('/ledgers-pending').then((d) => d.ledgers || []);
+
+const reportLedgerResults = (results) =>
+  call('/ledgers-result', { method: 'POST', body: { results } });
+
+module.exports = { heartbeat, pullPending, reportResults, ledgersPending, reportLedgerResults };

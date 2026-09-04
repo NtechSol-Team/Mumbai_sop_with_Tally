@@ -10,7 +10,7 @@ import { ok } from '../../shared/utils/apiResponse';
 import { AppError } from '../../shared/utils/AppError';
 import { tallyService } from './tally.service';
 import {
-  agentHeartbeatSchema, agentPullSchema, agentResultSchema,
+  agentHeartbeatSchema, agentLedgerResultSchema, agentPullSchema, agentResultSchema,
   queueQuerySchema, updateLedgerMapSchema, updateTallyConfigSchema,
 } from './tally.schema';
 
@@ -45,6 +45,15 @@ agentRouter.post(
   '/results',
   validate({ body: agentResultSchema }),
   asyncHandler(async (req: Request, res: Response) => ok(res, await tallyService.agentReportResults(req.body.results))),
+);
+agentRouter.get(
+  '/ledgers-pending',
+  asyncHandler(async (_req: Request, res: Response) => ok(res, { ledgers: await tallyService.agentLedgersPending() })),
+);
+agentRouter.post(
+  '/ledgers-result',
+  validate({ body: agentLedgerResultSchema }),
+  asyncHandler(async (req: Request, res: Response) => ok(res, await tallyService.agentReportLedgerResults(req.body.results))),
 );
 
 // ── Admin router: SUPER_ADMIN only ───────────────────────────────────────────

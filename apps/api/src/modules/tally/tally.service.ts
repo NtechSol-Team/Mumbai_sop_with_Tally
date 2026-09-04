@@ -150,6 +150,67 @@ export async function agentPending(limit: number) {
   return rows.map((r) => ({ id: r.id, dedupKey: r.dedupKey, revision: r.revision, payload: r.payloadJson }));
 }
 
+/**
+ * Ledgers the agent may create directly in Tally — only when the owner has
+ * turned `autoProvisionLedgers` on, and never the GST duty ledgers (see the
+ * schema comment on that flag for why).
+ */
+export async function agentLedgersPending() {
+  const cfg = await prisma.tallyConfig.findUnique({ where: { id: 'singleton' }, select: { autoProvisionLedgers: true } });
+  if (!cfg?.autoProvisionLedgers) return [];
+
+  const rows = await prisma.tallyLedgerMap.findMany({
+    where: { validatedAt: null, slot: { not: 'GST' } },
+    orderBy: { slot: 'asc' },
+  });
+  if (!rows.length) return [];
+
+  const outletIds = rows.filter((r) => r.slot === 'PARTY_OUTLET').map((r) => r.slotKey);
+  const supplierIds = rows.filter((r) => r.slot === 'PARTY_SUPPLIER').map((r) => r.slotKey);
+  const [outlets, suppliers] = await Promise.all([
+    outletIds.length
+      ? prisma.outlet.findMany({ where: { id: { in: outletIds } }, select: { id: true, gstin: true, address: true, phone: true } })
+      : [],
+    supplierIds.length
+      ? prisma.contact.findMany({ where: { id: { in: supplierIds } }, select: { id: true, gstin: true, stateName: true, address: true, phone: true } })
+      : [],
+  ]);
+  const outletById = new Map(outlets.map((o) => [o.id, o]));
+  const supplierById = new Map(suppliers.map((s) => [s.id, s]));
+
+  return rows.map((r) => {
+    let gstin: string | null = null;
+    let state: string | null = null;
+    let address: string | null = null;
+    let phone: string | null = null;
+    if (r.slot === 'PARTY_OUTLET') {
+      const o = outletById.get(r.slotKey);
+      if (o) { gstin = o.gstin; state = o.gstin ? 'Maharashtra' : null; address = o.address; phone = o.phone; }
+    } else if (r.slot === 'PARTY_SUPPLIER') {
+      const s = supplierById.get(r.slotKey);
+      if (s) { gstin = s.gstin; state = s.stateName; address = s.address; phone = s.phone; }
+    }
+    return {
+      id: r.id,
+      name: r.tallyLedgerName,
+      parentGroup: r.tallyParentGroup || (r.slot === 'PARTY_OUTLET' ? 'Sundry Debtors' : r.slot === 'PARTY_SUPPLIER' ? 'Sundry Creditors' : 'Primary'),
+      isParty: r.slot === 'PARTY_OUTLET' || r.slot === 'PARTY_SUPPLIER',
+      gstin, state, address, phone,
+    };
+  });
+}
+
+export async function agentReportLedgerResults(results: Array<{ id: string; status: 'CREATED' | 'EXISTS' | 'FAILED'; error?: string }>) {
+  const ok = results.filter((r) => r.status !== 'FAILED');
+  if (ok.length) {
+    await prisma.tallyLedgerMap.updateMany({ where: { id: { in: ok.map((r) => r.id) } }, data: { validatedAt: new Date() } });
+  }
+  for (const r of results.filter((x) => x.status === 'FAILED')) {
+    logger.warn({ ledgerMapId: r.id, error: r.error }, 'tally: ledger provisioning failed');
+  }
+  return { created: ok.length, failed: results.length - ok.length };
+}
+
 export async function agentReportResults(
   results: Array<{ id: string; status: 'SYNCED' | 'FAILED'; tallyVoucherId?: string; tallyResponse?: string; error?: string }>,
 ) {
@@ -186,4 +247,5 @@ export async function agentReportResults(
 export const tallyService = {
   getTallySettings, updateTallySettings, updateLedgerMap, listQueue, retryQueueItem, rotateAgentToken,
   assertAgentToken, agentHeartbeat, agentPending, agentReportResults,
+  agentLedgersPending, agentReportLedgerResults,
 };

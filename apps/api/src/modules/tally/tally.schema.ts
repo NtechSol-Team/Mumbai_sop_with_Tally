@@ -24,6 +24,7 @@ export const updateTallyConfigSchema = z
     syncPurchases: z.boolean(),
     syncExpenses: z.boolean(),
     syncStockJournal: z.boolean(),
+    autoProvisionLedgers: z.boolean(),
     inventoryMode: z.enum(ENUMS.inventoryMode),
     posSupplyKind: z.enum(ENUMS.posSupplyKind),
     posVoucherGranularity: z.enum(ENUMS.posVoucherGranularity),
@@ -84,4 +85,17 @@ export const agentResultSchema = z.object({
 export const agentHeartbeatSchema = z.object({
   label: z.string().trim().max(80).optional(),
   tallyCompanyName: z.string().trim().max(120).optional(),
+});
+
+export const agentLedgerResultSchema = z.object({
+  results: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        status: z.enum(['CREATED', 'EXISTS', 'FAILED']),
+        error: z.string().max(2000).optional(),
+      }),
+    )
+    .min(1)
+    .max(200),
 });

@@ -243,6 +243,16 @@ const TOGGLE_GROUPS: Array<{ title: string; items: Array<{ key: keyof TallyConfi
       { key: 'syncStockJournal', label: 'Stock journal — godown ⇄ branch transfers', hint: 'Only when Tally also mirrors inventory' },
     ],
   },
+  {
+    title: 'Ledger provisioning',
+    items: [
+      {
+        key: 'autoProvisionLedgers',
+        label: 'Let the agent create missing ledgers in Tally itself',
+        hint: 'Outlets, suppliers, sales/purchase/expense/bank ledgers only — never the 6 GST ledgers, create those yourself via Tally’s ledger wizard. Safe for a fresh/test company; leave OFF once real books are involved unless you want to review each one first.',
+      },
+    ],
+  },
 ];
 
 const CHOICE: Array<{ key: keyof TallyConfig; label: string; options: Array<[string, string]>; hint?: string }> = [
@@ -420,7 +430,7 @@ function LedgerTab() {
           <p className="border-b border-border px-4 py-2.5 text-body font-medium">{SLOT_LABEL[slot]}</p>
           <Table>
             <THead>
-              <TR><TH>ERP item</TH><TH>Tally ledger name</TH><TH>Group</TH></TR>
+              <TR><TH>ERP item</TH><TH>Tally ledger name</TH><TH>Group</TH><TH>In Tally?</TH></TR>
             </THead>
             <TBody>
               {(grouped.get(slot) ?? []).map((r) => (
@@ -434,6 +444,11 @@ function LedgerTab() {
                     />
                   </TD>
                   <TD className="align-middle text-caption text-muted-foreground">{r.tallyParentGroup ?? '—'}</TD>
+                  <TD className="align-middle">
+                    {r.validatedAt
+                      ? <Badge variant="success">Confirmed</Badge>
+                      : <Badge variant="neutral">Not yet</Badge>}
+                  </TD>
                 </TR>
               ))}
             </TBody>

@@ -1991,6 +1991,15 @@ model TallyConfig {
   syncExpenses     Boolean @default(true) @map("sync_expenses")
   syncStockJournal Boolean @default(false) @map("sync_stock_journal")
 
+  // Let the agent CREATE missing ledgers in Tally itself (party debtors/
+  // creditors, sales/purchase/expense/bank ledgers) instead of the owner
+  // typing them in by hand. OFF by default — safe for a real client's chart
+  // of accounts; turn it on for a fresh/test company to save the manual work.
+  // Deliberately excludes the 6 GST duty ledgers — those need "Type of
+  // duty/tax" set via Tally's own ledger wizard, which handles more Tally-
+  // version variation than hand-built XML should be trusted with.
+  autoProvisionLedgers Boolean @default(false) @map("auto_provision_ledgers")
+
   // ── Behaviour toggles (Phase 2 §I → settings, not code forks) ──
   inventoryMode         String  @default("ACCOUNTING_ONLY") @map("inventory_mode") // ACCOUNTING_ONLY | WITH_STOCK_JOURNALS
   posSupplyKind         String  @default("GOODS") @map("pos_supply_kind") // GOODS | RESTAURANT

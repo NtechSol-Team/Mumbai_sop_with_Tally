@@ -4,6 +4,7 @@ const config = require('./config');
 const erp = require('./erp-client');
 const tally = require('./tally-client');
 const { messagesFor } = require('./xml');
+const { buildLedgerEnvelope, isAlreadyExists } = require('./ledger-xml');
 
 /**
  * The loop:
@@ -19,8 +20,30 @@ const { messagesFor } = require('./xml');
 
 let timer = null;
 let running = false;
-const state = { erpOk: false, tallyOk: false, lastRun: null, lastError: null, pushed: 0, failed: 0 };
+const state = { erpOk: false, tallyOk: false, lastRun: null, lastError: null, pushed: 0, failed: 0, provisioned: 0 };
 let onChange = () => {};
+
+/**
+ * Only runs when the owner has turned "auto-provision ledgers" on. Creates
+ * whatever the ERP hands back (party ledgers, sales/purchase/expense/bank —
+ * never the GST duty ledgers) directly in Tally, and reports each outcome.
+ * "Already exists" counts as success, not a failure.
+ */
+async function provisionLedgers(company) {
+  const ledgers = await erp.ledgersPending();
+  if (!ledgers.length) return { provisioned: 0 };
+
+  const results = [];
+  for (const l of ledgers) {
+    const xml = buildLedgerEnvelope(l, company);
+    const result = await tally.send(xml);
+    if (result.ok) results.push({ id: l.id, status: 'CREATED' });
+    else if (isAlreadyExists(result.error)) results.push({ id: l.id, status: 'EXISTS' });
+    else results.push({ id: l.id, status: 'FAILED', error: result.error });
+  }
+  await erp.reportLedgerResults(results);
+  return { provisioned: results.filter((r) => r.status !== 'FAILED').length };
+}
 
 async function processItem(item, company) {
   const msgs = messagesFor(item, company);
@@ -56,6 +79,10 @@ async function runOnce() {
     if (!state.tallyOk) { state.lastError = 'Tally is not responding on ' + `${config.get().tallyHost}:${config.get().tallyPort}`; return; }
 
     const company = config.get().tallyCompany;
+
+    const prov = await provisionLedgers(company);
+    state.provisioned = prov.provisioned;
+
     const batch = await erp.pullPending(25);
     if (!batch.length) { state.pushed = 0; state.failed = 0; return; }
 

@@ -34,6 +34,7 @@ function line(s) {
   const bits = [
     `ERP ${s.erpOk ? 'ok' : 'DOWN'}`,
     `Tally ${s.tallyOk ? 'ok' : 'not responding'}`,
+    s.provisioned ? `ledgers created ${s.provisioned}` : null,
     s.pushed ? `pushed ${s.pushed}` : null,
     s.failed ? `failed ${s.failed}` : null,
     s.lastError ? `— ${s.lastError}` : null,

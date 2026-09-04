@@ -21,6 +21,7 @@ export interface TallyConfig {
   syncPurchases: boolean;
   syncExpenses: boolean;
   syncStockJournal: boolean;
+  autoProvisionLedgers: boolean;
   inventoryMode: 'ACCOUNTING_ONLY' | 'WITH_STOCK_JOURNALS';
   posSupplyKind: 'GOODS' | 'RESTAURANT';
   posVoucherGranularity: 'PER_BILL' | 'DAILY_SUMMARY';
