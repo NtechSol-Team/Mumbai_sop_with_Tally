@@ -102,8 +102,15 @@ async function runOnce() {
     await erp.heartbeat();
     state.erpOk = true;
 
-    state.tallyOk = await tally.ping();
-    if (!state.tallyOk) { state.lastError = 'Tally is not responding on ' + `${config.get().tallyHost}:${config.get().tallyPort}`; return; }
+    // Reachable is not enough — posting into the wrong company is worse than not
+    // posting at all, so both have to be true before anything is sent.
+    const probe = await tally.ping();
+    state.tallyOk = probe.reachable && probe.companyOpen;
+    if (!probe.reachable) {
+      state.lastError = probe.error || `Tally is not responding on ${config.get().tallyHost}:${config.get().tallyPort}`;
+      return;
+    }
+    if (!probe.companyOpen) { state.lastError = probe.error; return; }
 
     const company = config.get().tallyCompany;
 

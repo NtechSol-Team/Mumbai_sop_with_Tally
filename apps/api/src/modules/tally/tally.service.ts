@@ -133,11 +133,34 @@ export async function agentHeartbeat(input: { label?: string; tallyCompanyName?:
   return { ok: true };
 }
 
+/**
+ * How many times a voucher may be handed to the agent before we stop trying.
+ * Without a ceiling, a row whose agent dies before reporting stays PENDING and
+ * is re-pulled every cycle forever, consuming a slot and telling nobody.
+ */
+const MAX_DISPATCH_ATTEMPTS = 8;
+
 /** Hand the agent a batch of built, un-pushed vouchers. */
 export async function agentPending(limit: number) {
   await prisma.tallyConfig.update({ where: { id: 'singleton' }, data: { agentLastSeenAt: new Date() } }).catch(() => undefined);
+
+  // Anything past the ceiling is given up on, with a reason the owner can read
+  // and a Retry button that resets the counter.
+  const exhausted = await prisma.tallySyncQueue.updateMany({
+    where: { status: TallySyncStatus.PENDING, payloadJson: { not: Prisma.DbNull }, attempts: { gte: MAX_DISPATCH_ATTEMPTS } },
+    data: {
+      status: TallySyncStatus.FAILED,
+      errorMessage: `Gave up after ${MAX_DISPATCH_ATTEMPTS} attempts without Tally confirming the voucher. Check the agent and Tally, then Retry.`,
+    },
+  });
+  if (exhausted.count) logger.warn({ count: exhausted.count }, 'tally: vouchers exhausted their dispatch attempts');
+
   const rows = await prisma.tallySyncQueue.findMany({
-    where: { status: TallySyncStatus.PENDING, payloadJson: { not: Prisma.DbNull } },
+    where: {
+      status: TallySyncStatus.PENDING,
+      payloadJson: { not: Prisma.DbNull },
+      attempts: { lt: MAX_DISPATCH_ATTEMPTS },
+    },
     orderBy: { createdAt: 'asc' },
     take: limit,
   });

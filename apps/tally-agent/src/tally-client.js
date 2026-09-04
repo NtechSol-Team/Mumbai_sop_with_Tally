@@ -34,14 +34,37 @@ function postXml(xml) {
   });
 }
 
-/** Is Tally reachable and answering on its HTTP port right now? */
+/**
+ * Is Tally reachable AND is the company we're supposed to post into actually
+ * open? Answering only the first question is how a dashboard shows a healthy
+ * green agent while every voucher fails against the wrong company — so this
+ * reports the two separately.
+ */
 async function ping() {
+  const c = config.get();
   try {
     const probe = '<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Data</TYPE><ID>List of Companies</ID></HEADER><BODY><DESC></DESC></BODY></ENVELOPE>';
-    const { status } = await postXml(probe);
-    return status === 200;
-  } catch {
-    return false;
+    const { status, body } = await postXml(probe);
+    if (status !== 200) return { reachable: false, companyOpen: false, error: `Tally HTTP ${status}` };
+
+    if (!c.tallyCompany) {
+      return {
+        reachable: true, companyOpen: false,
+        error: 'No Tally company name configured — set TALLY_COMPANY so vouchers cannot land in the wrong company.',
+      };
+    }
+    // Tally lists the open companies as <NAME>..</NAME> entries; compare loosely
+    // on case/whitespace since the operator types this by hand.
+    const names = [...body.matchAll(/<NAME>([\s\S]*?)<\/NAME>/gi)].map((m) => m[1].trim().toLowerCase());
+    const wanted = c.tallyCompany.trim().toLowerCase();
+    const companyOpen = names.length === 0 ? true : names.some((n) => n === wanted);
+    return {
+      reachable: true,
+      companyOpen,
+      error: companyOpen ? null : `Tally is running but "${c.tallyCompany}" is not open (open: ${names.join(', ') || 'none'}).`,
+    };
+  } catch (err) {
+    return { reachable: false, companyOpen: false, error: err.message || String(err) };
   }
 }
 

@@ -51,7 +51,10 @@ function openSettings() {
 
 ipcMain.handle('config:get', () => config.get());
 ipcMain.handle('config:save', (_e, patch) => { const c = config.set(patch); syncLoop.start(onState); return c; });
-ipcMain.handle('tally:ping', () => tally.ping());
+ipcMain.handle('tally:ping', async () => {
+  const p = await tally.ping();
+  return p.reachable && p.companyOpen;
+});
 ipcMain.handle('sync:now', async () => { await syncLoop.runOnce(); return syncLoop.getState(); });
 ipcMain.handle('state:get', () => syncLoop.getState());
 ipcMain.handle('open:external', (_e, url) => shell.openExternal(url));

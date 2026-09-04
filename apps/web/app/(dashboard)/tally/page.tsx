@@ -255,12 +255,21 @@ const TOGGLE_GROUPS: Array<{ title: string; items: Array<{ key: keyof TallyConfi
   },
 ];
 
-const CHOICE: Array<{ key: keyof TallyConfig; label: string; options: Array<[string, string]>; hint?: string }> = [
+/**
+ * `notYetActive` marks a setting the sync does not read yet. It stays visible so
+ * the accounting decision is still recorded, but it is disabled and labelled —
+ * a toggle that silently does nothing is worse than no toggle, because it turns
+ * an open question into a false assurance about the client's statutory books.
+ */
+const CHOICE: Array<{ key: keyof TallyConfig; label: string; options: Array<[string, string]>; hint?: string; notYetActive?: boolean }> = [
   { key: 'inventoryMode', label: 'What Tally holds', options: [['ACCOUNTING_ONLY', 'Accounting vouchers only (recommended)'], ['WITH_STOCK_JOURNALS', 'Also mirror stock']], hint: 'Recommended: keep stock in the ERP only; Tally gets the books.' },
-  { key: 'posSupplyKind', label: 'Counter sales are', options: [['GOODS', 'Retail sale of packaged goods (HSN, ITC)'], ['RESTAURANT', 'Restaurant service (SAC, no ITC)']], hint: 'Ask your CA which applies to the counter.' },
-  { key: 'razorpayReceiptMode', label: 'Razorpay receipts', options: [['CLEARING', 'Gross → Razorpay clearing ledger'], ['DIRECT_BANK', 'Gross → bank directly']] },
   { key: 'accruedExpenseMode', label: 'Unpaid (accrued) expenses', options: [['ON_PAYMENT', 'Only sync once actually paid'], ['JOURNAL_NOW', 'Journal now, payment later']] },
-  { key: 'closingStockBasis', label: 'Closing-stock value basis', options: [['GST_PURCHASE_STOCK', 'GST-purchase stock only'], ['TOTAL_ERP_STOCK', 'Total ERP stock']], hint: 'CA must confirm — non-GST purchases are off the books.' },
+  { key: 'posSupplyKind', label: 'Counter sales are', options: [['GOODS', 'Retail sale of packaged goods (HSN, ITC)'], ['RESTAURANT', 'Restaurant service (SAC, no ITC)']], hint: 'Ask your CA which applies. Counter sales currently always post as goods.', notYetActive: true },
+  { key: 'razorpayReceiptMode', label: 'Razorpay receipts', options: [['CLEARING', 'Gross → Razorpay clearing ledger'], ['DIRECT_BANK', 'Gross → bank directly']], hint: 'Razorpay currently always posts to whichever ledger the Razorpay payment method is mapped to.', notYetActive: true },
+  { key: 'discountMode', label: 'POS discounts', options: [['SEPARATE_LEDGER', 'Separate Discount Allowed ledger'], ['NET_OFF_SALES', 'Net off sales']], hint: 'Discounts are currently always netted into the sale.', notYetActive: true },
+  { key: 'closingStockBasis', label: 'Closing-stock value basis', options: [['GST_PURCHASE_STOCK', 'GST-purchase stock only'], ['TOTAL_ERP_STOCK', 'Total ERP stock']], hint: 'CA must confirm — non-GST purchases are off the books. No closing-stock journal is posted yet.', notYetActive: true },
+  { key: 'closingStockMode', label: 'Post closing stock', options: [['MANUAL', 'Never — the CA does it in Tally'], ['MONTHLY', 'Monthly'], ['ON_DEMAND', 'On demand']], hint: 'Not implemented yet; closing stock stays a manual entry in Tally.', notYetActive: true },
+  { key: 'posVoucherGranularity', label: 'POS voucher style', options: [['PER_BILL', 'One voucher per counter bill'], ['DAILY_SUMMARY', 'One summary per day per payment mode']], hint: 'Currently always one voucher per bill.', notYetActive: true },
 ];
 
 function SettingsTab() {
@@ -364,17 +373,28 @@ function SettingsTab() {
         {CHOICE.map((c) => (
           <div key={String(c.key)} className="grid gap-1.5 sm:grid-cols-[1fr,18rem] sm:items-center">
             <span>
-              <span className="text-body">{c.label}</span>
+              <span className="text-body">
+                {c.label}
+                {c.notYetActive && <Badge variant="warning" className="ml-2 align-middle">Not active yet</Badge>}
+              </span>
               {c.hint && <span className="block text-caption text-muted-foreground">{c.hint}</span>}
             </span>
-            <Select value={String(cfg[c.key])} onChange={(e) => set({ [c.key]: e.target.value } as Partial<TallyConfig>)}>
+            <Select
+              value={String(cfg[c.key])}
+              disabled={c.notYetActive}
+              onChange={(e) => set({ [c.key]: e.target.value } as Partial<TallyConfig>)}
+            >
               {c.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </Select>
           </div>
         ))}
-        <label className="flex items-center justify-between gap-3 border-t border-border pt-3">
-          <span className="text-body">Block a voucher if an item&apos;s GST rate doesn&apos;t match its configured rate</span>
-          <input type="checkbox" className="h-4 w-4" checked={cfg.blockOnRateMismatch} onChange={(e) => set({ blockOnRateMismatch: e.target.checked })} />
+        <label className="flex items-center justify-between gap-3 border-t border-border pt-3 opacity-60">
+          <span className="text-body">
+            Block a voucher if an item&apos;s GST rate doesn&apos;t match its configured rate
+            <Badge variant="warning" className="ml-2 align-middle">Not active yet</Badge>
+            <span className="block text-caption text-muted-foreground">No GST rate check runs yet — vouchers post with whatever tax the ERP recorded.</span>
+          </span>
+          <input type="checkbox" className="h-4 w-4" disabled checked={cfg.blockOnRateMismatch} readOnly />
         </label>
       </Card>
     </div>
