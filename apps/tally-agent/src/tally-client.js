@@ -46,9 +46,16 @@ async function ping() {
 }
 
 /**
- * Parse Tally's import response. Tally returns 200 even for a rejected voucher,
- * with the failure inside the XML — so success is CREATED/ALTERED > 0 AND no
- * LINEERROR / EXCEPTIONS.
+ * Parse Tally's import response. Tally answers 200 even when it rejects the
+ * payload — the outcome is inside the XML, as counts plus an optional
+ * <LINEERROR>.
+ *
+ * Returns the raw counts as well as a verdict, because "nothing changed" means
+ * different things for the two callers:
+ *   • a VOUCHER that created nothing genuinely did not post — that's a failure;
+ *   • a LEDGER that created nothing is almost always one that already exists
+ *     (Tally silently ignores a Create for an existing master), which is
+ *     exactly what we want — see isNoOp below.
  */
 function interpret(body) {
   const num = (tag) => {
@@ -56,14 +63,30 @@ function interpret(body) {
     return m ? Number(m[1]) : 0;
   };
   const lineError = (body.match(/<LINEERROR>([\s\S]*?)<\/LINEERROR>/i) || [])[1];
-  const errorsCount = num('ERRORS') + num('EXCEPTIONS');
-  const changed = num('CREATED') + num('ALTERED') + num('DELETED');
+  const counts = {
+    created: num('CREATED'),
+    altered: num('ALTERED'),
+    deleted: num('DELETED'),
+    ignored: num('IGNORED'),
+    errors: num('ERRORS') + num('EXCEPTIONS'),
+  };
+  const changed = counts.created + counts.altered + counts.deleted;
   const lastVchId = (body.match(/<LASTVCHID>\s*(\d+)\s*<\/LASTVCHID>/i) || [])[1] || null;
 
-  if (lineError) return { ok: false, error: lineError.trim(), raw: body };
-  if (errorsCount > 0) return { ok: false, error: `Tally reported ${errorsCount} error(s)`, raw: body };
-  if (changed <= 0) return { ok: false, error: 'Tally accepted the request but created nothing', raw: body };
-  return { ok: true, tallyVoucherId: lastVchId, raw: body };
+  if (lineError) return { ok: false, error: lineError.trim(), counts, raw: body };
+  if (counts.errors > 0) return { ok: false, error: `Tally reported ${counts.errors} error(s)`, counts, raw: body };
+  if (changed <= 0) {
+    return {
+      ok: false,
+      // Flagged so a ledger "ensure exists" can accept this while a voucher push
+      // still treats it as a real failure.
+      isNoOp: true,
+      error: 'Tally accepted the request but created nothing (the master most likely already exists)',
+      counts,
+      raw: body,
+    };
+  }
+  return { ok: true, tallyVoucherId: lastVchId, counts, raw: body };
 }
 
 async function send(xml) {

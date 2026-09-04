@@ -40,7 +40,10 @@ async function provisionOne(ledger, company) {
   for (const attempt of buildLedgerMessages(ledger, company)) {
     const result = await tally.send(attempt.xml);
     if (result.ok) return { id: ledger.id, status: 'CREATED' };
-    if (isAlreadyExists(result.error)) return { id: ledger.id, status: 'EXISTS' };
+    // Provisioning is "ensure this ledger exists", so both of Tally's ways of
+    // saying "it already does" are success: an explicit duplicate message, and
+    // the silent no-op it returns when a Create targets an existing master.
+    if (result.isNoOp || isAlreadyExists(result.error)) return { id: ledger.id, status: 'EXISTS' };
     lastError = result.error;
   }
   return { id: ledger.id, status: 'FAILED', error: lastError, ledgerName: ledger.name };
@@ -71,8 +74,12 @@ async function processItem(item, company) {
   for (const msg of msgs) {
     const result = await tally.send(msg.xml);
     if (!result.ok) {
-      if (msg.action === 'Delete' && msg.tolerateNotFound && /not exist|no vouchers|could not find/i.test(result.error)) {
-        continue; // nothing to delete — fine, carry on to Create
+      // Re-posting an edited voucher deletes the old one first. Tally reporting
+      // "nothing to delete" — either in words or as a silent no-op — is the
+      // expected case when the original never made it in, so carry on to Create.
+      if (msg.action === 'Delete' && msg.tolerateNotFound
+        && (result.isNoOp || /not exist|no vouchers|could not find/i.test(result.error))) {
+        continue;
       }
       return { id: item.id, status: 'FAILED', error: result.error, tallyResponse: result.raw?.slice(0, 4000) };
     }
