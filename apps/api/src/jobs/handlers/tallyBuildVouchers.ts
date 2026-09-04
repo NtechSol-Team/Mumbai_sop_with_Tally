@@ -6,7 +6,7 @@ import { emitRealtime } from '../../sockets/realtime';
 import { RealtimeEvent } from '../../sockets/events';
 import { buildVoucher } from '../../modules/tally/tally.builder';
 import { TallyBuildError } from '../../modules/tally/tally.types';
-import { getTallyConfig } from '../../modules/tally/tally.config';
+import { getTallyConfig, ensureTallyDefaults } from '../../modules/tally/tally.config';
 
 /**
  * Turn PENDING queue rows into validated canonical vouchers.
@@ -24,6 +24,12 @@ import { getTallyConfig } from '../../modules/tally/tally.config';
 export async function tallyBuildVouchersHandler(_jobs: Job[]): Promise<void> {
   const cfg = await getTallyConfig();
   if (!cfg.syncEnabled) return;
+
+  // Pick up anything added since the last pass — a new outlet, a new expense
+  // category, a supplier that has just had its first bill. Without this, the
+  // map only refreshes when someone opens the settings screen, and a voucher
+  // for something brand-new fails on a mapping that simply doesn't exist yet.
+  await ensureTallyDefaults();
 
   // Rows needing a build: PENDING with no payload yet (fresh or re-opened after an edit).
   const rows = await prisma.tallySyncQueue.findMany({

@@ -1,4 +1,4 @@
-import { Prisma, PaymentMethod, TallyEntityType } from '@prisma/client';
+import { Prisma, ContactType, PaymentMethod, TallyEntityType } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { splitGst } from '../../shared/utils/gst';
@@ -170,6 +170,75 @@ async function buildReceipt(row: QueueRow, ix: LedgerIndex): Promise<TallyVouche
 
 // ─────────────────────────────── PURCHASE ─────────────────────────────────────
 
+/**
+ * The Sundry Creditor ledger for a purchase bill's supplier, creating whatever
+ * is missing along the way.
+ *
+ * A brand-new supplier must never need a manual step. Two things can be absent
+ * the first time one appears, and both are fixed here rather than thrown at the
+ * owner as "match it in Contacts":
+ *   1. the party-master link — `logPurchase` sets it post-commit on a best-effort
+ *      path that swallows its own errors, so it can legitimately be missing;
+ *   2. the ledger-map row — a supplier that has never been mapped has no
+ *      PARTY_SUPPLIER entry yet.
+ *
+ * Resolution matches on GSTIN first (a business's real identity) and falls back
+ * to a case-insensitive name, which is the same rule the purchase form uses, so
+ * this cannot fork a supplier into two ledgers.
+ */
+async function resolveSupplierLedger(
+  bill: { id: string; supplierContactId: string | null; supplierName: string | null; supplierGstin: string | null; createdById: string | null },
+  ix: LedgerIndex,
+): Promise<string> {
+  let contactId = bill.supplierContactId;
+  const name = bill.supplierName?.trim();
+
+  if (!contactId) {
+    if (!name) {
+      throw new TallyBuildError('This purchase has no supplier name, so it cannot be posted to a creditor ledger. Add the supplier on the bill and retry.');
+    }
+    const gstin = bill.supplierGstin?.trim() || null;
+    const existing = await prisma.contact.findFirst({
+      where: {
+        type: ContactType.SUPPLIER,
+        isDeleted: false,
+        ...(gstin ? { gstin: { equals: gstin, mode: 'insensitive' } } : { name: { equals: name, mode: 'insensitive' } }),
+      },
+      select: { id: true },
+    });
+    contactId = existing?.id
+      ?? (await prisma.contact.create({
+        data: {
+          type: ContactType.SUPPLIER, name, gstin,
+          stateCode: gstin ? gstin.slice(0, 2) : null,
+          createdById: bill.createdById,
+        },
+        select: { id: true },
+      })).id;
+    // Link it back so this only ever happens once for this supplier.
+    await prisma.supplierBill.update({ where: { id: bill.id }, data: { supplierContactId: contactId } });
+  }
+
+  const mapped = ix.get(`PARTY_SUPPLIER:${contactId}`);
+  if (mapped?.tallyLedgerName.trim()) return mapped.tallyLedgerName.trim();
+
+  // No mapping yet — create one now rather than failing the voucher. The owner
+  // can rename it later in Ledger Mapping; the link stays keyed on the contact.
+  const contact = await prisma.contact.findUnique({ where: { id: contactId }, select: { name: true } });
+  const ledgerName = (contact?.name ?? name ?? '').trim();
+  if (!ledgerName) throw new TallyBuildError('Could not determine a supplier ledger name for this purchase.');
+
+  await prisma.tallyLedgerMap.upsert({
+    where: { slot_slotKey: { slot: 'PARTY_SUPPLIER', slotKey: contactId } },
+    create: {
+      slot: 'PARTY_SUPPLIER', slotKey: contactId, slotLabel: ledgerName,
+      tallyLedgerName: ledgerName, tallyParentGroup: 'Sundry Creditors',
+    },
+    update: {},
+  });
+  return ledgerName;
+}
+
 async function buildPurchase(row: QueueRow, ix: LedgerIndex): Promise<TallyVoucherPayload | null> {
   const b = await prisma.supplierBill.findUnique({
     where: { id: row.entityId },
@@ -180,10 +249,7 @@ async function buildPurchase(row: QueueRow, ix: LedgerIndex): Promise<TallyVouch
   if (!b.isGstBill) throw new TallyBuildError('Non-GST purchase reached the builder — it must stay EXCLUDED');
   if (b.outletId) throw new TallyBuildError('Branch purchase reached the builder — it must stay EXCLUDED');
 
-  if (!b.supplierContactId) {
-    throw new TallyBuildError(`Supplier "${b.supplierName ?? 'Unknown'}" is not linked to a party ledger. Match it in Contacts, then retry.`);
-  }
-  const supplierLedger = resolveLedger(ix, 'PARTY_SUPPLIER', b.supplierContactId);
+  const supplierLedger = await resolveSupplierLedger(b, ix);
   const total = round2(n(b.totalAmount));
 
   const lines: TallyLedgerLine[] = [{
@@ -230,14 +296,20 @@ async function buildPurchase(row: QueueRow, ix: LedgerIndex): Promise<TallyVouch
 async function buildSupplierPayment(row: QueueRow, ix: LedgerIndex): Promise<TallyVoucherPayload | null> {
   const p = await prisma.supplierPayment.findUnique({
     where: { id: row.entityId },
-    include: { bill: { select: { isGstBill: true, outletId: true, invoiceNumber: true, billNumber: true, supplierContactId: true, supplierName: true } } },
+    include: {
+      bill: {
+        select: {
+          id: true, isGstBill: true, outletId: true, invoiceNumber: true, billNumber: true,
+          supplierContactId: true, supplierName: true, supplierGstin: true, createdById: true,
+        },
+      },
+    },
   });
   if (!p) return cancelPayload(row);
   if (p.isDeleted) return cancelPayload(row);
   if (!p.bill.isGstBill || p.bill.outletId) throw new TallyBuildError('Payment for an excluded bill reached the builder');
-  if (!p.bill.supplierContactId) throw new TallyBuildError(`Supplier "${p.bill.supplierName ?? 'Unknown'}" is not linked to a party ledger.`);
 
-  const supplierLedger = resolveLedger(ix, 'PARTY_SUPPLIER', p.bill.supplierContactId);
+  const supplierLedger = await resolveSupplierLedger(p.bill, ix);
   const bank = resolveLedger(ix, 'BANK_CASH', p.method);
   const amt = round2(n(p.amount));
 
