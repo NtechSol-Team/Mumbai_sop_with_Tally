@@ -42,6 +42,27 @@ async function wipe(): Promise<void> {
 
 async function main(): Promise<void> {
   console.log('🌱 Seeding Mumbai ERP...');
+
+  // Production seed credentials must never be the public defaults documented
+  // for local development. Render generates this value and keeps it secret.
+  const productionPassword = process.env.SEED_PASSWORD?.trim();
+  if (process.env.NODE_ENV === 'production' && !productionPassword) {
+    throw new Error('SEED_PASSWORD is required when seeding in production');
+  }
+  const passwords = productionPassword
+    ? {
+        admin: productionPassword,
+        godown: productionPassword,
+        owner: productionPassword,
+        cashier: productionPassword,
+      }
+    : {
+        admin: 'Admin@123',
+        godown: 'Godown@123',
+        owner: 'Owner@123',
+        cashier: 'Cashier@123',
+      };
+
   await wipe();
 
   // ── Outlets (created first; owners linked after users exist) ───────────────
@@ -53,17 +74,17 @@ async function main(): Promise<void> {
 
   // ── Users ──────────────────────────────────────────────────────────────────
   const admin = await prisma.user.create({
-    data: { userId: 'ADMIN001', email: 'admin@mumbaierp.local', name: 'Ramesh Patel', phone: '+91 99999 00001', role: UserRole.SUPER_ADMIN, passwordHash: await hash('Admin@123') },
+    data: { userId: 'ADMIN001', email: 'admin@mumbaierp.local', name: 'Ramesh Patel', phone: '+91 99999 00001', role: UserRole.SUPER_ADMIN, passwordHash: await hash(passwords.admin) },
   });
   const godown = await prisma.user.create({
-    data: { userId: 'GODOWN001', email: 'godown@mumbaierp.local', name: 'Suresh Shah', phone: '+91 99999 00002', role: UserRole.GODOWN_MANAGER, passwordHash: await hash('Godown@123'), createdById: admin.id },
+    data: { userId: 'GODOWN001', email: 'godown@mumbaierp.local', name: 'Suresh Shah', phone: '+91 99999 00002', role: UserRole.GODOWN_MANAGER, passwordHash: await hash(passwords.godown), createdById: admin.id },
   });
 
-  const owner1 = await prisma.user.create({ data: { userId: 'OWNER001', email: 'owner.adajan@mumbaierp.local', name: 'Kiran Mehta', phone: '+91 99999 11111', role: UserRole.FRANCHISE_OWNER, outletId: adajan.id, passwordHash: await hash('Owner@123'), createdById: admin.id } });
-  const owner2 = await prisma.user.create({ data: { userId: 'OWNER002', email: 'owner.vesu@mumbaierp.local', name: 'Nilesh Desai', phone: '+91 99999 22222', role: UserRole.FRANCHISE_OWNER, outletId: vesu.id, passwordHash: await hash('Owner@123'), createdById: admin.id } });
-  const owner3 = await prisma.user.create({ data: { userId: 'OWNER003', email: 'owner.katargam@mumbaierp.local', name: 'Bhavna Joshi', phone: '+91 99999 33333', role: UserRole.FRANCHISE_OWNER, outletId: katargam.id, passwordHash: await hash('Owner@123'), createdById: admin.id } });
+  const owner1 = await prisma.user.create({ data: { userId: 'OWNER001', email: 'owner.adajan@mumbaierp.local', name: 'Kiran Mehta', phone: '+91 99999 11111', role: UserRole.FRANCHISE_OWNER, outletId: adajan.id, passwordHash: await hash(passwords.owner), createdById: admin.id } });
+  const owner2 = await prisma.user.create({ data: { userId: 'OWNER002', email: 'owner.vesu@mumbaierp.local', name: 'Nilesh Desai', phone: '+91 99999 22222', role: UserRole.FRANCHISE_OWNER, outletId: vesu.id, passwordHash: await hash(passwords.owner), createdById: admin.id } });
+  const owner3 = await prisma.user.create({ data: { userId: 'OWNER003', email: 'owner.katargam@mumbaierp.local', name: 'Bhavna Joshi', phone: '+91 99999 33333', role: UserRole.FRANCHISE_OWNER, outletId: katargam.id, passwordHash: await hash(passwords.owner), createdById: admin.id } });
 
-  await prisma.user.create({ data: { userId: 'CASH001', email: 'cashier.adajan@mumbaierp.local', name: 'Amit Prajapati', role: UserRole.CASHIER, outletId: adajan.id, passwordHash: await hash('Cashier@123'), createdById: admin.id } });
+  await prisma.user.create({ data: { userId: 'CASH001', email: 'cashier.adajan@mumbaierp.local', name: 'Amit Prajapati', role: UserRole.CASHIER, outletId: adajan.id, passwordHash: await hash(passwords.cashier), createdById: admin.id } });
 
   await Promise.all([
     prisma.outlet.update({ where: { id: adajan.id }, data: { ownerUserId: owner1.id, createdById: admin.id } }),
@@ -365,10 +386,15 @@ async function main(): Promise<void> {
   await prisma.$executeRawUnsafe('SELECT refresh_analytics_views()');
 
   console.log('✅ Seed complete.');
-  console.log('   Super Admin → admin@mumbaierp.local / Admin@123  (or user ID ADMIN001)');
-  console.log('   Godown Mgr  → godown@mumbaierp.local / Godown@123 (GODOWN001)');
-  console.log('   Owner       → owner.adajan@mumbaierp.local / Owner@123 (OWNER001)');
-  console.log('   Cashier     → cashier.adajan@mumbaierp.local / Cashier@123 (CASH001)');
+  if (productionPassword) {
+    console.log('   Production users use the secret SEED_PASSWORD environment value.');
+    console.log('   Super Admin → admin@mumbaierp.local (or user ID ADMIN001)');
+  } else {
+    console.log('   Super Admin → admin@mumbaierp.local / Admin@123  (or user ID ADMIN001)');
+    console.log('   Godown Mgr  → godown@mumbaierp.local / Godown@123 (GODOWN001)');
+    console.log('   Owner       → owner.adajan@mumbaierp.local / Owner@123 (OWNER001)');
+    console.log('   Cashier     → cashier.adajan@mumbaierp.local / Cashier@123 (CASH001)');
+  }
 }
 
 main()

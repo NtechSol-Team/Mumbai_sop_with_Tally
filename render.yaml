@@ -1,22 +1,27 @@
 databases:
   - name: mumbai-erp-postgres
     plan: free
+    region: singapore
     databaseName: mumbai_erp
     user: mumbai_erp
+    # The API uses the internal connection string; the database needs no public ingress.
+    ipAllowList: []
 
 services:
   # ── API (Express + Prisma + Socket.IO + pg-boss, all in one process) ──────
   - type: web
-    name: mumbai-erp-api
+    name: mumbai-erp-ntechsol-api
     runtime: node
     plan: free
+    region: singapore
     rootDir: .
     buildCommand: >
-      npm install --include=dev &&
+      npm ci --include=dev &&
       npx prisma generate --schema=apps/api/prisma/schema.prisma &&
       npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma &&
       npm run api:build
     startCommand: node apps/api/dist/server.js
+    initialDeployHook: npx tsx apps/api/prisma/seed.ts
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -33,36 +38,25 @@ services:
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
+      - key: SEED_PASSWORD
+        generateValue: true
       # 27 = Maharashtra (Mumbai). CONFIRM against the client's GST certificate.
       - key: HOME_STATE_CODE
         value: "27"
-      # Set this to the web service's live URL after both services are up
-      # (Render UI → mumbai-erp-api → Environment). Needed for CORS.
       - key: WEB_ORIGIN
-        sync: false
-      # Fill these in the Render dashboard, not in git.
-      - key: RAZORPAY_KEY_ID
-        sync: false
-      - key: RAZORPAY_KEY_SECRET
-        sync: false
-      - key: RAZORPAY_WEBHOOK_SECRET
-        sync: false
-      - key: GSTZEN_API_KEY
-        sync: false
+        value: https://mumbai-erp-ntechsol-web.onrender.com
 
   # ── Web (Next.js) ───────────────────────────────────────────────────────────
   - type: web
-    name: mumbai-erp-web
-    runtime: node
-    plan: free
+    name: mumbai-erp-ntechsol-web
+    runtime: static
     rootDir: .
-    buildCommand: npm install --include=dev && npm run web:build
-    startCommand: npm run start --workspace @mumbai-erp/web
+    buildCommand: npm ci --include=dev && npm run web:build
+    staticPublishPath: apps/web/out
     envVars:
       - key: NODE_ENV
         value: production
-      # Set this to the API service's live URL (Render UI → mumbai-erp-web →
-      # Environment), then trigger a manual redeploy — Next.js inlines
-      # NEXT_PUBLIC_* vars at build time, so this must be set before building.
+      - key: STATIC_EXPORT
+        value: "true"
       - key: NEXT_PUBLIC_API_URL
-        sync: false
+        value: https://mumbai-erp-ntechsol-api.onrender.com
