@@ -388,13 +388,20 @@ function SettingsTab() {
             </Select>
           </div>
         ))}
-        <label className="flex items-center justify-between gap-3 border-t border-border pt-3 opacity-60">
+        <label className="flex items-center justify-between gap-3 border-t border-border pt-3">
           <span className="text-body">
-            Block a voucher if an item&apos;s GST rate doesn&apos;t match its configured rate
-            <Badge variant="warning" className="ml-2 align-middle">Not active yet</Badge>
-            <span className="block text-caption text-muted-foreground">No GST rate check runs yet — vouchers post with whatever tax the ERP recorded.</span>
+            Hold a voucher whose GST doesn&apos;t add up
+            <span className="block text-caption text-muted-foreground">
+              Checks each line&apos;s tax against its own quantity, rate and percentage, and the lines against the
+              document total. Historical rates are respected — this catches mis-entry, not old rates.
+            </span>
           </span>
-          <input type="checkbox" className="h-4 w-4" disabled checked={cfg.blockOnRateMismatch} readOnly />
+          <input
+            type="checkbox"
+            className="h-4 w-4"
+            checked={cfg.blockOnRateMismatch}
+            onChange={(e) => set({ blockOnRateMismatch: e.target.checked })}
+          />
         </label>
       </Card>
     </div>

@@ -17,8 +17,8 @@ reasoned but not yet reproduced.
 
 | Severity | Count | Theme |
 |---|---|---|
-| 🔴 Critical | 3 | Settings that silently do nothing; no GST rate validation; another client's names in the schema |
-| 🟠 High | 4 | False "healthy" signal; no retry ceiling; voucher ordering; Tally numbering conflict |
+| 🔴 Critical | 3 (2 fixed) | Settings that silently do nothing; no GST rate validation; another client's names in the schema |
+| 🟠 High | 4 (2 fixed) | False "healthy" signal; no retry ceiling; voucher ordering; Tally numbering conflict |
 | 🟡 Medium | 7 | Lost ITC, untaxed charges, advance allocation, repost window, concurrency, company fallback, rate limits |
 | ⚪ Low | 4 | Timezone dependency, unbounded queue growth, response retention, token lifecycle |
 
@@ -29,7 +29,7 @@ is the kind of failure that looks like success.
 
 ## 🔴 Critical
 
-### 1. Nine settings do nothing at all — **verified**
+### 1. Nine settings do nothing at all — **verified · MITIGATED**
 
 The Settings screen offers these, and the builder never reads any of them:
 
@@ -83,7 +83,7 @@ thing standing between the schema and being genuinely client-clean.
 
 ---
 
-### 3. No GST rate validation exists — **verified**
+### 3. No GST rate validation exists — **verified · FIXED**
 
 The brief called for validating that "GST rate must match the configured rate for
 that item" before pushing. `blockOnRateMismatch` exists as a setting and defaults
@@ -105,7 +105,7 @@ it when off. `assertBalanced` already proves internal consistency — this prove
 
 ## 🟠 High
 
-### 4. "Tally ok" does not mean the right company is open — **verified**
+### 4. "Tally ok" does not mean the right company is open — **verified · FIXED**
 
 `ping()` sends a *List of Companies* export and returns true on HTTP 200. That
 proves Tally is running with its HTTP server on. It does **not** prove the
@@ -121,7 +121,7 @@ Cheap, and turns a silent failure into an obvious one.
 
 ---
 
-### 5. No retry ceiling and no backoff — **verified**
+### 5. No retry ceiling and no backoff — **verified · FIXED**
 
 The Phase 3 architecture says "exponential backoff per voucher, capped; after N
 attempts a voucher goes FAILED." **Neither exists.** `attempts` is incremented on
@@ -138,7 +138,7 @@ them `FAILED` with "gave up after N attempts", and stagger re-pulls using
 
 ---
 
-### 6. A Receipt can post before the Sales voucher it allocates against — **verified**
+### 6. A Receipt can post before the Sales voucher it allocates against — **verified · FIXED**
 
 `buildReceipt` emits `Agst Ref <billNumber>`. Nothing guarantees that bill's
 Sales voucher is already in Tally. The queue drains in `createdAt` order, which
@@ -253,15 +253,24 @@ Worth stating plainly, because the above is a long list:
 
 ---
 
-## Recommended order of work
+## Progress
 
-1. **Mark the nine dead settings as inactive in the UI** (#1) — minutes, removes a
-   false assurance today.
-2. **Company verification in `ping()`** (#4) and **require `tallyCompany`** (#13).
-3. **Retry ceiling** (#5).
-4. **Voucher dependency ordering** (#6).
-5. **GST rate validation** (#3) — then `blockOnRateMismatch` becomes real.
-6. **Rename `PaidBy`** (#2) — needs the owner names from you.
-7. Implement `posSupplyKind`, `razorpayReceiptMode`, `discountMode` properly (#1).
-8. Take #8, #9, #10 to the CA as accounting decisions before coding them.
-9. Manual voucher numbering added to the go-live checklist (#7).
+**Done**
+- #1 mitigated — the eight still-unimplemented settings are disabled and badged
+  "Not active yet", so none of them can be mistaken for a treatment that applies.
+- #3 fixed — `assertGstConsistent()` validates sales and purchase documents, and
+  `blockOnRateMismatch` is now a real, enabled setting.
+- #4 fixed — `ping()` reports reachable and companyOpen separately; a missing
+  company name is itself an error.
+- #5 fixed — vouchers give up after `MAX_DISPATCH_ATTEMPTS` with a readable
+  reason; Retry resets the counter.
+- #6 fixed — `TallyDeferError` holds a payment until the invoice it allocates
+  against has reached Tally, without marking it failed.
+
+**Next**
+1. **Rename `PaidBy`** (#2) — blocked on the Mumbai owner/partner names.
+2. Implement `posSupplyKind`, `razorpayReceiptMode`, `discountMode` (#1).
+3. Take #8 (lost ITC), #9 (untaxed bill charges) and #10 (advance allocation) to
+   the CA as accounting decisions before coding them.
+4. Manual voucher numbering added to the go-live checklist (#7).
+5. Housekeeping: agent-endpoint rate limits (#14), queue retention (#16).
