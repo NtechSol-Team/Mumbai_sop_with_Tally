@@ -4,7 +4,7 @@ import { env } from '../../config/env';
 import { splitGst } from '../../shared/utils/gst';
 import type { TallyConfig } from './tally.config';
 import { loadLedgerIndex, resolveLedger, type LedgerIndex } from './tally.config';
-import { TallyBuildError, type TallyLedgerLine, type TallyVoucherPayload } from './tally.types';
+import { TallyBuildError, TallyDeferError, type TallyLedgerLine, type TallyVoucherPayload } from './tally.types';
 
 type QueueRow = Prisma.TallySyncQueueGetPayload<Record<string, never>>;
 
@@ -37,6 +37,72 @@ function cancelPayload(row: QueueRow): TallyVoucherPayload {
   };
 }
 
+/**
+ * A payment allocated "against" an invoice Tally has not received yet does not
+ * attach — the money lands on the party but the bill-wise outstanding and ageing
+ * are wrong, which is the exact figure this integration exists to make
+ * trustworthy. So hold the payment until its invoice is in.
+ *
+ * Only PENDING blocks. A parent that is FAILED, EXCLUDED or absent will never
+ * arrive, and waiting forever helps nobody — post it and let the accountant see
+ * both rows.
+ */
+async function assertParentVoucherSynced(
+  parentType: 'SALES_BILL' | 'PURCHASE_BILL',
+  parentId: string,
+  label: string,
+): Promise<void> {
+  const parent = await prisma.tallySyncQueue.findUnique({
+    where: { entityType_entityId: { entityType: parentType, entityId: parentId } },
+    select: { status: true, docNumber: true },
+  });
+  if (parent?.status === 'PENDING') {
+    throw new TallyDeferError(
+      `Waiting for ${parent.docNumber ?? label} to reach Tally first, so this payment allocates against it correctly.`,
+    );
+  }
+}
+
+/**
+ * Does the tax actually recorded on this document agree with its own line items?
+ *
+ * Deliberately an internal-consistency check, NOT a lookup against the product's
+ * current tax rate: GST rates change by Council notification (pre-packaged
+ * namkeen went 12% → 5% on 22 Sep 2025) and a bill raised before a change
+ * legitimately keeps the old rate. Comparing against today's rate would fail
+ * every historical document. What this does catch is a tax figure that does not
+ * follow from its own quantity, rate and percentage — mis-entry, a partial edit,
+ * or drift between the lines and the header.
+ *
+ * `lines` are (taxableBase, ratePercent, recordedTax) triples.
+ */
+function assertGstConsistent(
+  lines: Array<{ label: string; base: number; ratePercent: number; tax: number }>,
+  headerTax: number,
+  opts: { inclusive?: boolean; block: boolean },
+): string | null {
+  const problems: string[] = [];
+  let lineSum = 0;
+  for (const l of lines) {
+    lineSum += l.tax;
+    const expected = opts.inclusive
+      ? (l.base * l.ratePercent) / (100 + l.ratePercent)
+      : (l.base * l.ratePercent) / 100;
+    // A paisa of slack per line: the ERP rounds each line to 2dp on the way in.
+    if (Math.abs(round2(expected) - round2(l.tax)) > 0.01) {
+      problems.push(`"${l.label}" is taxed ${l.tax.toFixed(2)} but ${l.ratePercent}% of ${l.base.toFixed(2)} is ${expected.toFixed(2)}`);
+    }
+  }
+  if (Math.abs(round2(lineSum) - round2(headerTax)) > 0.02) {
+    problems.push(`the line taxes total ${lineSum.toFixed(2)} but the document says ${headerTax.toFixed(2)}`);
+  }
+  if (!problems.length) return null;
+
+  const message = `GST does not add up — ${problems.join('; ')}.`;
+  if (opts.block) throw new TallyBuildError(`${message} Fix the document, or turn off "block on GST rate mismatch" to post it anyway.`);
+  return message;
+}
+
 function assertBalanced(lines: TallyLedgerLine[]): void {
   const dr = round2(lines.filter((l) => l.drCr === 'DR').reduce((s, l) => s + l.amount, 0));
   const cr = round2(lines.filter((l) => l.drCr === 'CR').reduce((s, l) => s + l.amount, 0));
@@ -48,7 +114,10 @@ function assertBalanced(lines: TallyLedgerLine[]): void {
 // ─────────────────────────────── SALES BILL ───────────────────────────────────
 
 async function buildSalesBill(row: QueueRow, ix: LedgerIndex, cfg: TallyConfig): Promise<TallyVoucherPayload | null> {
-  const bill = await prisma.bill.findUnique({ where: { id: row.entityId }, include: { outlet: true } });
+  const bill = await prisma.bill.findUnique({
+    where: { id: row.entityId },
+    include: { outlet: true, items: { where: { isDeleted: false } } },
+  });
   if (!bill) throw new TallyBuildError('Bill no longer exists');
   if (bill.isDeleted) return cancelPayload(row);
   if (!bill.isGstBill && !cfg.syncNonGstOutletSales) return null; // config says skip these
@@ -70,6 +139,16 @@ async function buildSalesBill(row: QueueRow, ix: LedgerIndex, cfg: TallyConfig):
   ];
 
   if (bill.isGstBill && taxTotal > 0) {
+    assertGstConsistent(
+      bill.items.map((i) => ({
+        label: i.productNameSnapshot,
+        base: n(i.rate) * n(i.quantity),
+        ratePercent: n(i.taxPercent),
+        tax: n(i.taxAmount),
+      })),
+      taxTotal,
+      { block: cfg.blockOnRateMismatch },
+    );
     // Prefer the snapshot; recompute from the total for bills raised before the split existed.
     let { cgst, sgst, igst } = { cgst: n(bill.cgst), sgst: n(bill.sgst), igst: n(bill.igst) };
     if (round2(cgst + sgst + igst) !== round2(taxTotal)) {
@@ -141,6 +220,7 @@ async function buildReceipt(row: QueueRow, ix: LedgerIndex): Promise<TallyVouche
   });
   if (!p) throw new TallyBuildError('Payment no longer exists');
   if (p.isDeleted || p.status !== 'SUCCESS') return cancelPayload(row);
+  if (p.billId) await assertParentVoucherSynced('SALES_BILL', p.billId, 'the sales bill');
 
   const bank = resolveLedger(ix, 'BANK_CASH', p.method);
   const outletLedger = resolveLedger(ix, 'PARTY_OUTLET', p.outletId);
@@ -239,7 +319,7 @@ async function resolveSupplierLedger(
   return ledgerName;
 }
 
-async function buildPurchase(row: QueueRow, ix: LedgerIndex): Promise<TallyVoucherPayload | null> {
+async function buildPurchase(row: QueueRow, ix: LedgerIndex, cfg: TallyConfig): Promise<TallyVoucherPayload | null> {
   const b = await prisma.supplierBill.findUnique({
     where: { id: row.entityId },
     include: { items: { where: { isDeleted: false } }, supplierContact: { select: { id: true, name: true } } },
@@ -248,6 +328,17 @@ async function buildPurchase(row: QueueRow, ix: LedgerIndex): Promise<TallyVouch
   if (b.isDeleted) return cancelPayload(row);
   if (!b.isGstBill) throw new TallyBuildError('Non-GST purchase reached the builder — it must stay EXCLUDED');
   if (b.outletId) throw new TallyBuildError('Branch purchase reached the builder — it must stay EXCLUDED');
+
+  assertGstConsistent(
+    b.items.map((i) => ({
+      label: i.name,
+      base: n(i.taxableAmount),
+      ratePercent: n(i.taxRate),
+      tax: n(i.taxAmount),
+    })),
+    n(b.taxAmount),
+    { block: cfg.blockOnRateMismatch },
+  );
 
   const supplierLedger = await resolveSupplierLedger(b, ix);
   const total = round2(n(b.totalAmount));
@@ -308,6 +399,7 @@ async function buildSupplierPayment(row: QueueRow, ix: LedgerIndex): Promise<Tal
   if (!p) return cancelPayload(row);
   if (p.isDeleted) return cancelPayload(row);
   if (!p.bill.isGstBill || p.bill.outletId) throw new TallyBuildError('Payment for an excluded bill reached the builder');
+  await assertParentVoucherSynced('PURCHASE_BILL', p.bill.id, 'the purchase bill');
 
   const supplierLedger = await resolveSupplierLedger(p.bill, ix);
   const bank = resolveLedger(ix, 'BANK_CASH', p.method);
@@ -424,7 +516,7 @@ export async function buildVoucher(row: QueueRow): Promise<TallyVoucherPayload |
     case 'SALES_BILL': return buildSalesBill(row, ix, cfg);
     case 'POS_SALE': return buildPosSale(row, ix);
     case 'PAYMENT_IN': return buildReceipt(row, ix);
-    case 'PURCHASE_BILL': return buildPurchase(row, ix);
+    case 'PURCHASE_BILL': return buildPurchase(row, ix, cfg);
     case 'SUPPLIER_PAYMENT': return buildSupplierPayment(row, ix);
     case 'EXPENSE': return buildExpense(row, ix, cfg);
     case 'STOCK_TRANSFER': return buildStockJournal(row, cfg);

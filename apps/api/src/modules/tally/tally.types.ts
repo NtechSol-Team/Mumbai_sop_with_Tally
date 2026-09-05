@@ -59,3 +59,17 @@ export class TallyBuildError extends Error {
     this.name = 'TallyBuildError';
   }
 }
+
+/**
+ * Thrown when a voucher is fine but not its turn yet — typically a receipt
+ * waiting for the invoice it is allocated against to reach Tally first. Distinct
+ * from TallyBuildError because the row stays PENDING and retries, rather than
+ * being marked FAILED; the reason is still shown so it never looks stuck for no
+ * apparent cause.
+ */
+export class TallyDeferError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TallyDeferError';
+  }
+}

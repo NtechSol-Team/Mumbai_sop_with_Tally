@@ -5,7 +5,7 @@ import { logger } from '../../config/logger';
 import { emitRealtime } from '../../sockets/realtime';
 import { RealtimeEvent } from '../../sockets/events';
 import { buildVoucher } from '../../modules/tally/tally.builder';
-import { TallyBuildError } from '../../modules/tally/tally.types';
+import { TallyBuildError, TallyDeferError } from '../../modules/tally/tally.types';
 import { getTallyConfig, ensureTallyDefaults } from '../../modules/tally/tally.config';
 
 /**
@@ -41,6 +41,7 @@ export async function tallyBuildVouchersHandler(_jobs: Job[]): Promise<void> {
 
   let built = 0;
   let failed = 0;
+  let deferred = 0;
   for (const row of rows) {
     try {
       const payload = await buildVoucher(row);
@@ -51,6 +52,13 @@ export async function tallyBuildVouchersHandler(_jobs: Job[]): Promise<void> {
       });
       built += 1;
     } catch (err) {
+      // Deferred is not failed: the row stays PENDING and is retried, but the
+      // reason is recorded so it never looks stuck for no apparent cause.
+      if (err instanceof TallyDeferError) {
+        await prisma.tallySyncQueue.update({ where: { id: row.id }, data: { errorMessage: err.message } });
+        deferred += 1;
+        continue;
+      }
       const message = err instanceof TallyBuildError
         ? err.message
         : `Could not build the voucher: ${err instanceof Error ? err.message : String(err)}`;
@@ -62,8 +70,8 @@ export async function tallyBuildVouchersHandler(_jobs: Job[]): Promise<void> {
     }
   }
 
-  if (built || failed) {
-    logger.info({ built, failed, scanned: rows.length }, 'tally: voucher build pass');
+  if (built || failed || deferred) {
+    logger.info({ built, failed, deferred, scanned: rows.length }, 'tally: voucher build pass');
     await emitRealtime(RealtimeEvent.REPORT_READY, { type: 'tally_build', built, failed }, { global: true });
   }
 }
