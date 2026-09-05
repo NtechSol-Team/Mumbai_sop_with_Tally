@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Save, Building2, QrCode } from 'lucide-react';
+import { Save, Building2, QrCode, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,11 +14,13 @@ import { useCompanyProfile, useUpdateCompanyProfile, type CompanyProfile } from 
 const FIELDS: readonly (keyof CompanyProfile)[] = [
   'legalName', 'displayName', 'tagline', 'address', 'phone', 'email',
   'gstin', 'fssai', 'upiVpa', 'upiPayeeName', 'invoiceTerms',
+  'partner1Name', 'partner2Name',
 ];
 
 const empty: CompanyProfile = {
   legalName: '', displayName: '', tagline: '', address: '', phone: '', email: '',
   gstin: '', fssai: '', upiVpa: '', upiPayeeName: '', invoiceTerms: '',
+  partner1Name: '', partner2Name: '',
 };
 
 // name@bank — mirrors the API's UPI_VPA_RE (used only for the inline hint).
@@ -140,6 +142,31 @@ export function BusinessProfileDialog({ open, onClose }: { open: boolean; onClos
             </div>
           </div>
           <p className="mt-1.5 text-caption text-muted-foreground">Leave the UPI ID blank to hide the payment QR entirely.</p>
+        </div>
+
+        <div className="rounded-lg border border-border bg-surface p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
+            <Users className="h-3.5 w-3.5" /> Partners
+          </p>
+          <p className="mb-2.5 text-caption text-muted-foreground">
+            Who, besides the business itself, pays for things out of their own pocket and is reimbursed. These
+            names label the &ldquo;paid by&rdquo; choice on expenses and their current accounts in the books.
+            Leave blank if the business has no partner accounts.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Partner 1 name</Label>
+              <Input value={form.partner1Name} onChange={set('partner1Name')} placeholder="e.g. Rajesh Shah" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Partner 2 name</Label>
+              <Input value={form.partner2Name} onChange={set('partner2Name')} placeholder="e.g. Nikhil Mehta" />
+            </div>
+          </div>
+          <p className="mt-1.5 text-caption text-muted-foreground">
+            Renaming a partner here does not rename a partner ledger already created in Tally — change that in
+            Settings &rarr; Tally and in Tally itself, so the books stay in step.
+          </p>
         </div>
 
         <div className="space-y-1.5">

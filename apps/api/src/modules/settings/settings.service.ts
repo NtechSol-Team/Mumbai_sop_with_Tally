@@ -1,3 +1,4 @@
+import type { PaidBy } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import type { AuthUser } from '../../shared/types/api';
@@ -58,11 +59,20 @@ export interface CompanyProfile {
   upiPayeeName: string;
   /** Invoice terms & conditions, pipe-separated (one term per segment). */
   invoiceTerms: string;
+  /**
+   * Display names for the two partner accounts (`PaidBy.PARTNER_1` / `PARTNER_2`).
+   * The enum holds opaque keys precisely so a partner's name never requires a
+   * migration; this is where the real name lives. Blank falls back to the
+   * generic label, so an unconfigured business still reads sensibly.
+   */
+  partner1Name: string;
+  partner2Name: string;
 }
 
 const COMPANY_PROFILE_KEYS: readonly (keyof CompanyProfile)[] = [
   'legalName', 'displayName', 'tagline', 'address', 'phone', 'email',
   'gstin', 'fssai', 'upiVpa', 'upiPayeeName', 'invoiceTerms',
+  'partner1Name', 'partner2Name',
 ];
 
 function companyDefaults(): CompanyProfile {
@@ -78,6 +88,29 @@ function companyDefaults(): CompanyProfile {
     upiVpa: '',
     upiPayeeName: '',
     invoiceTerms: env.COMPANY_TERMS,
+    partner1Name: '',
+    partner2Name: '',
+  };
+}
+
+/** What a generic, unnamed partner slot is called everywhere in the UI. */
+const PARTNER_FALLBACK: Record<Exclude<PaidBy, 'COMPANY'>, string> = {
+  PARTNER_1: 'Partner 1',
+  PARTNER_2: 'Partner 2',
+};
+
+/**
+ * Display name for every `PaidBy` value, configured names applied.
+ *
+ * One place decides this so the expenses screen, the ledger account list and
+ * the Tally partner ledger can never drift apart on what a partner is called.
+ */
+export async function getPaidByLabels(): Promise<Record<PaidBy, string>> {
+  const p = await getCompanyProfile();
+  return {
+    COMPANY: 'Company',
+    PARTNER_1: p.partner1Name.trim() || PARTNER_FALLBACK.PARTNER_1,
+    PARTNER_2: p.partner2Name.trim() || PARTNER_FALLBACK.PARTNER_2,
   };
 }
 
@@ -120,4 +153,5 @@ export const settingsService = {
   setCallButtonPhone,
   getCompanyProfile,
   setCompanyProfile,
+  getPaidByLabels,
 };

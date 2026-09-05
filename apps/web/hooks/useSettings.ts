@@ -38,6 +38,9 @@ export interface CompanyProfile {
   upiVpa: string;
   upiPayeeName: string;
   invoiceTerms: string;
+  /** Real names for the two partner accounts; blank = the generic "Partner 1". */
+  partner1Name: string;
+  partner2Name: string;
 }
 
 /** Readable by every authenticated role — the UPI QR and invoice header need it. */

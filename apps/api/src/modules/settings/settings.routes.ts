@@ -63,6 +63,9 @@ const companyProfileSchema = z
       .refine((v) => v === '' || UPI_VPA_RE.test(v), 'Invalid UPI ID — expected something like name@bank'),
     upiPayeeName: z.string().trim().max(120),
     invoiceTerms: z.string().trim().max(3000),
+    // Blank is meaningful: it falls back to the generic "Partner 1" label.
+    partner1Name: z.string().trim().max(120),
+    partner2Name: z.string().trim().max(120),
   })
   .partial()
   .refine((b) => Object.keys(b).length > 0, 'Nothing to update');

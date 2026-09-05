@@ -142,13 +142,19 @@ enum ExpenseLocation {
   GENERAL
 }
 
-// Whose pocket the money actually came out of. COMPANY is the business itself; the
-// named partners cover costs personally and are reimbursed, so their spend has to be
+// Whose pocket the money actually came out of. COMPANY is the business itself;
+// a partner covers costs personally and is reimbursed, so their spend has to be
 // separable in the ledger. Existing rows default to COMPANY, which is what they were.
+//
+// The values are deliberately opaque keys, not people's names: a partner's real
+// name is display data that changes with the business, and encoding it here would
+// mean a schema migration every time — as well as carrying one client's
+// proprietors into another's books. The names live on the company profile
+// (partner1Name / partner2Name) and are editable in Settings → Business Profile.
 enum PaidBy {
   COMPANY
-  KALPESHBHAI
-  MAYURBHAI
+  PARTNER_1
+  PARTNER_2
 }
 
 /// Where a fixed asset currently stands. Depreciation/disposal are deliberately not

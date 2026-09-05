@@ -1,9 +1,10 @@
 import { startOfMonth } from 'date-fns';
-import { Prisma } from '@prisma/client';
+import { Prisma, PaidBy } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { cache, CacheTag } from '../../config/cache';
 import { AppError } from '../../shared/utils/AppError';
 import type { AuthUser } from '../../shared/types/api';
+import { settingsService } from '../settings/settings.service';
 
 const num = (rows: Array<{ v: number | null }>): number => Number(rows[0]?.v ?? 0);
 
@@ -320,15 +321,19 @@ export interface LedgerEntry {
   sourceId: string | null;
 }
 
-const PERSON_ACCOUNTS = [
-  { id: 'COMPANY', name: 'Company' },
-  { id: 'KALPESHBHAI', name: 'Kalpeshbhai' },
-  { id: 'MAYURBHAI', name: 'Mayurbhai' },
-] as const;
 
-/** Every account that can be opened, with its balance to date. */
+
+/**
+ * Every account that can be opened, with its balance to date.
+ *
+ * Balances are cached on the financial tags; the partner display names are
+ * resolved afterwards, outside the cache, because they are configuration —
+ * renaming a partner in Settings would otherwise not show until the next
+ * payment or expense happened to invalidate this entry.
+ */
 export async function getLedgerAccounts() {
-  return cache.getOrSet('accounting:ledger:accounts', [CacheTag.PAYMENTS, CacheTag.BILLS, CacheTag.EXPENSES], async () => {
+  const [cached, paidByLabels] = await Promise.all([
+    cache.getOrSet('accounting:ledger:accounts', [CacheTag.PAYMENTS, CacheTag.BILLS, CacheTag.EXPENSES], async () => {
     const [personSpend, outlets, suppliers] = await Promise.all([
       prisma.expense.groupBy({
         by: ['paidBy'],
@@ -357,12 +362,22 @@ export async function getLedgerAccounts() {
 
     const spendOf = new Map(personSpend.map((p) => [p.paidBy as string, Number(p._sum.amount ?? 0)]));
     const accounts: LedgerAccount[] = [
-      ...PERSON_ACCOUNTS.map((p) => ({ id: `PERSON:${p.id}`, name: p.name, kind: 'PERSON' as const, balance: spendOf.get(p.id) ?? 0 })),
+      // Named below, once the configured partner names are in hand.
+      ...Object.values(PaidBy).map((id) => ({
+        id: `PERSON:${id}`, name: id as string, kind: 'PERSON' as const, balance: spendOf.get(id) ?? 0,
+      })),
       ...outlets.map((o) => ({ id: `OUTLET:${o.id}`, name: o.name, kind: 'OUTLET' as const, balance: Number(o.balance) })),
       ...suppliers.map((s) => ({ id: `SUPPLIER:${s.name}`, name: s.name, kind: 'SUPPLIER' as const, balance: Number(s.balance) })),
     ];
     return { accounts };
-  });
+    }),
+    settingsService.getPaidByLabels(),
+  ]);
+
+  const accounts = cached.accounts.map((a) =>
+    a.kind === 'PERSON' ? { ...a, name: paidByLabels[a.id.slice('PERSON:'.length) as PaidBy] ?? a.name } : a,
+  );
+  return { accounts };
 }
 
 type RawEntry = { date: Date; type: string; description: string; reference: string | null; debit: number; credit: number; sourceId: string | null };

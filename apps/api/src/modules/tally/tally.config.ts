@@ -1,4 +1,5 @@
 import { Prisma, ContactType, PaidBy } from '@prisma/client';
+import { settingsService } from '../settings/settings.service';
 import { prisma } from '../../config/prisma';
 import { logger } from '../../config/logger';
 import type { AuthUser } from '../../shared/types/api';
@@ -118,7 +119,8 @@ export async function ensureTallyDefaults(): Promise<void> {
   try {
     await getTallyConfig();
 
-    const [outlets, suppliers, categories, existing] = await Promise.all([
+    const [paidByLabels, outlets, suppliers, categories, existing] = await Promise.all([
+      settingsService.getPaidByLabels(),
       prisma.outlet.findMany({ where: { isDeleted: false }, select: { id: true, name: true, legalName: true } }),
       prisma.contact.findMany({ where: { isDeleted: false, type: ContactType.SUPPLIER }, select: { id: true, name: true } }),
       prisma.expenseCategory.findMany({ where: { isDeleted: false }, select: { id: true, name: true } }),
@@ -129,9 +131,15 @@ export async function ensureTallyDefaults(): Promise<void> {
     const rows: SeedRow[] = [...FIXED_SEEDS];
 
     // A current account per partner who fronts business costs out of pocket.
+    // The name comes from the company profile, not the enum — the enum holds
+    // opaque keys so a partner's name never needs a migration. Seeding is
+    // insert-only, so renaming a partner later does NOT rename a ledger that
+    // already exists in Tally: that has to stay a deliberate act (in Settings →
+    // Tally, and correspondingly in Tally itself), never a silent side effect
+    // of editing the business profile.
     for (const p of Object.values(PaidBy)) {
       if (p === PaidBy.COMPANY) continue;
-      const label = p.charAt(0) + p.slice(1).toLowerCase();
+      const label = paidByLabels[p];
       rows.push({
         slot: 'SPECIAL', slotKey: `PARTNER_${p}`, slotLabel: `${label} — current account`,
         tallyLedgerName: `${label} Current A/c`, tallyParentGroup: 'Capital Account',

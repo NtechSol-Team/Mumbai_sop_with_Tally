@@ -23,7 +23,7 @@ import { cn, formatINR, ist, istDateInput, todayIso } from '@/lib/utils';
 import {
   useExpenseCategories, useCreateExpenseCategory, useUpdateExpenseCategory,
   useExpenseSummary, useExpenses, useSaveExpense, useDeleteExpense,
-  PAID_BY_LABEL, PAID_BY_OPTIONS,
+  PAID_BY_OPTIONS, usePaidByLabels,
   type ExpenseLocation, type Expense, type ExpenseFilters, type PaidBy,
 } from '@/hooks/useExpenses';
 
@@ -370,6 +370,7 @@ function StatCard({ label, value, icon: Icon, foot }: {
 }
 
 function ExpenseRow({ expense, isBranch, onEdit }: { expense: Expense; isBranch: boolean; onEdit: () => void }) {
+  const paidByLabels = usePaidByLabels();
   const del = useDeleteExpense();
   const remove = () => {
     if (!window.confirm(`Delete this ${formatINR(expense.amount)} expense?`)) return;
@@ -383,7 +384,7 @@ function ExpenseRow({ expense, isBranch, onEdit }: { expense: Expense; isBranch:
       <TD className="whitespace-nowrap">{format(ist(expense.expenseDate), 'dd MMM yyyy')}</TD>
       <TD className="font-medium">{expense.category.name}</TD>
       <TD className="text-muted-foreground">{expense.paidTo || '—'}</TD>
-      <TD><Badge variant={expense.paidBy === 'COMPANY' ? 'neutral' : 'info'}>{PAID_BY_LABEL[expense.paidBy]}</Badge></TD>
+      <TD><Badge variant={expense.paidBy === 'COMPANY' ? 'neutral' : 'info'}>{paidByLabels[expense.paidBy]}</Badge></TD>
       {!isBranch && <TD><Badge variant="neutral">{LOCATION_LABEL[expense.location]}</Badge></TD>}
       <TD>
         {expense.paymentMethod === 'NOT_PAID' ? (
@@ -413,6 +414,7 @@ function ExpenseFormDialog({ open, onOpenChange, expense, isBranch }: {
   open: boolean; onOpenChange: (v: boolean) => void; expense: Expense | null; isBranch: boolean;
 }) {
   const { data: categories } = useExpenseCategories();
+  const paidByLabels = usePaidByLabels();
   const save = useSaveExpense();
   const [form, setForm] = useState({ ...emptyExpense });
   const set = <K extends keyof typeof emptyExpense>(k: K, v: (typeof emptyExpense)[K]) => setForm((f) => ({ ...f, [k]: v }));
@@ -495,7 +497,7 @@ function ExpenseFormDialog({ open, onOpenChange, expense, isBranch }: {
           <div className="space-y-1.5">
             <Label>Paid by</Label>
             <Select value={form.paidBy} onChange={(e) => set('paidBy', e.target.value as PaidBy)}>
-              {PAID_BY_OPTIONS.map((p) => <option key={p} value={p}>{PAID_BY_LABEL[p]}</option>)}
+              {PAID_BY_OPTIONS.map((p) => <option key={p} value={p}>{paidByLabels[p]}</option>)}
             </Select>
           </div>
           <div className="sm:col-span-2 space-y-1.5">

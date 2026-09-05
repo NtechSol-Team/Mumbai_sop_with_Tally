@@ -3,18 +3,34 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { ApiSuccess } from '@/types/api';
+import { useCompanyProfile } from '@/hooks/useSettings';
 
 export type ExpenseLocation = 'GODOWN' | 'MAIN_BRANCH' | 'GENERAL';
 export type ExpensePaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'NET_BANKING' | 'RAZORPAY' | 'BANK_TRANSFER' | 'NOT_PAID';
-export type PaidBy = 'COMPANY' | 'KALPESHBHAI' | 'MAYURBHAI';
+export type PaidBy = 'COMPANY' | 'PARTNER_1' | 'PARTNER_2';
 
-/** Display labels for who fronted the money. */
+/**
+ * Fallback labels. The partner slots are deliberately generic here: a partner's
+ * real name is business configuration (Settings → Business Profile), not
+ * something baked into the code, so it can change without a release. Use
+ * `usePaidByLabels()` for anything a user reads.
+ */
 export const PAID_BY_LABEL: Record<PaidBy, string> = {
   COMPANY: 'Company',
-  KALPESHBHAI: 'Kalpeshbhai',
-  MAYURBHAI: 'Mayurbhai',
+  PARTNER_1: 'Partner 1',
+  PARTNER_2: 'Partner 2',
 };
 export const PAID_BY_OPTIONS = Object.keys(PAID_BY_LABEL) as PaidBy[];
+
+/** The configured partner names, falling back to the generic labels above. */
+export function usePaidByLabels(): Record<PaidBy, string> {
+  const { data } = useCompanyProfile();
+  return {
+    COMPANY: PAID_BY_LABEL.COMPANY,
+    PARTNER_1: data?.partner1Name?.trim() || PAID_BY_LABEL.PARTNER_1,
+    PARTNER_2: data?.partner2Name?.trim() || PAID_BY_LABEL.PARTNER_2,
+  };
+}
 
 export interface ExpenseCategory { id: string; name: string; isSystem: boolean }
 

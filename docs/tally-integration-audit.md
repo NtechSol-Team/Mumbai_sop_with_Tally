@@ -17,7 +17,7 @@ reasoned but not yet reproduced.
 
 | Severity | Count | Theme |
 |---|---|---|
-| 🔴 Critical | 3 (2 fixed) | Settings that silently do nothing; no GST rate validation; another client's names in the schema |
+| 🔴 Critical | 3 (3 fixed) | Settings that silently do nothing; no GST rate validation; another client's names in the schema |
 | 🟠 High | 4 (2 fixed) | False "healthy" signal; no retry ceiling; voucher ordering; Tally numbering conflict |
 | 🟡 Medium | 7 | Lost ITC, untaxed charges, advance allocation, repost window, concurrency, company fallback, rate limits |
 | ⚪ Low | 4 | Timezone dependency, unbounded queue growth, response retention, token lifecycle |
@@ -62,24 +62,55 @@ assurance today.
 
 ---
 
-### 2. The previous client's partners are baked into the schema — **verified**
+### 2. The previous client's partners are baked into the schema — **verified · FIXED**
 
-`PaidBy` is still `COMPANY | KALPESHBHAI | MAYURBHAI`, and `ensureTallyDefaults`
-turns every non-COMPANY value into a real Tally ledger — so **"Kalpeshbhai Current
-A/c" and "Mayurbhai Current A/c" will be created in the Mumbai client's Tally**,
-appear in their Balance Sheet under Capital Account, and be visible to their
-auditor.
-
-`PERSON_ACCOUNTS` in `accounting.service.ts` carries the same names.
+`PaidBy` was `COMPANY | KALPESHBHAI | MAYURBHAI`, and `ensureTallyDefaults`
+turns every non-COMPANY value into a real Tally ledger — so "Kalpeshbhai Current
+A/c" and "Mayurbhai Current A/c" would have been created in the Mumbai client's
+Tally, appeared in their Balance Sheet under Capital Account, and been visible to
+their auditor. `PERSON_ACCOUNTS` in `accounting.service.ts` carried the same
+names, as did `PAID_BY_LABEL` in the web app.
 
 **Why it matters.** Another business's proprietor names inside this client's
 statutory books. Beyond the obvious embarrassment, it is a data-provenance
 problem in an audited system.
 
-**Fix.** One migration renaming the enum values, plus the `PERSON_ACCOUNTS`
-constant and any existing `tally_ledger_map` rows. **Blocked on you:** I need the
-actual Mumbai owner/partner names. I have asked three times — this is the last
-thing standing between the schema and being genuinely client-clean.
+**Fix.** The real problem was not the two names — it was that *a person's name
+was a database enum*. Businesses change partners; that must never require a
+migration, and it must never carry one client's proprietors into another's
+books.
+
+The enum now holds opaque keys — `COMPANY | PARTNER_1 | PARTNER_2` — and the
+names are configuration on the company profile (`partner1Name`, `partner2Name`),
+edited in **Settings → Business Profile** alongside the GSTIN and UPI ID. Blank
+falls back to "Partner 1" / "Partner 2", so an unconfigured business still reads
+sensibly rather than showing a raw enum key.
+
+`settingsService.getPaidByLabels()` is the single source of the display name, so
+the expenses screen, the ledger account list and the Tally partner ledger cannot
+drift apart on what a partner is called. In `getLedgerAccounts()` the names are
+resolved *outside* the balance cache — that cache is tagged on payments/bills/
+expenses, so a rename would otherwise not appear until one of those happened to
+invalidate it.
+
+Two migrations, both non-destructive:
+
+- `20260905090000_partner_keys_not_names` — `ALTER TYPE ... RENAME VALUE` rather
+  than Prisma's default drop-and-recreate, so existing expense rows keep pointing
+  at the same partner; `tally_ledger_map.slot_key` follows the rename.
+- `20260905091500_partner_ledger_names_placeholder` — scrubs the seeded ledger
+  *names*, but only where the row still holds exactly the old default **and**
+  `validated_at IS NULL`. A ledger already confirmed to exist in Tally is left
+  alone and flagged in `notes` instead: silently repointing a map row whose
+  ledger exists in Tally would strand every voucher already posted against it.
+
+**Still on you.** Ledger seeding is insert-only by design, so renaming a partner
+in the business profile does *not* rename a ledger that already exists in Tally —
+that has to stay a deliberate act, in Settings → Tally and in Tally itself. If
+the client's Tally already received "Kalpeshbhai Current A/c" or "Mayurbhai
+Current A/c" from an earlier provisioning run, delete those two ledgers in Tally
+(Alt+G → Chart of Accounts → Ledgers) once you have entered the real partner
+names — they will have no vouchers against them.
 
 ---
 
@@ -266,11 +297,12 @@ Worth stating plainly, because the above is a long list:
   reason; Retry resets the counter.
 - #6 fixed — `TallyDeferError` holds a payment until the invoice it allocates
   against has reached Tally, without marking it failed.
+- #2 fixed — `PaidBy` holds opaque keys; partner names are configuration on the
+  company profile, editable in Settings → Business Profile.
 
 **Next**
-1. **Rename `PaidBy`** (#2) — blocked on the Mumbai owner/partner names.
-2. Implement `posSupplyKind`, `razorpayReceiptMode`, `discountMode` (#1).
-3. Take #8 (lost ITC), #9 (untaxed bill charges) and #10 (advance allocation) to
+1. Implement `posSupplyKind`, `razorpayReceiptMode`, `discountMode` (#1).
+2. Take #8 (lost ITC), #9 (untaxed bill charges) and #10 (advance allocation) to
    the CA as accounting decisions before coding them.
-4. Manual voucher numbering added to the go-live checklist (#7).
-5. Housekeeping: agent-endpoint rate limits (#14), queue retention (#16).
+3. Manual voucher numbering added to the go-live checklist (#7).
+4. Housekeeping: agent-endpoint rate limits (#14), queue retention (#16).
