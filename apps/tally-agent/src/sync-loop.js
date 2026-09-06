@@ -23,6 +23,7 @@ async function provisionOne(ledger, company, c, existing) {
   let lastError;
   for (const attempt of buildLedgerMessages(ledger, company)) {
     const result = await tally.send(attempt.xml, c, 'Create');
+    if (result.requestRejected) throw Object.assign(new Error(result.error + ' Stopped this cycle before attempting further ledgers or vouchers. Run the one-ledger diagnostic.'), { source: 'TALLY' });
     if (result.contextError) throw Object.assign(new Error(result.error), { source: 'TALLY' });
     if (result.ok) {
       existing.add(ledger.name);
@@ -91,7 +92,7 @@ async function processItem(item, company, c) {
       return {
         id: item.id, revision: item.revision, status: 'FAILED',
         error: `${detail}${deleted ? ' The previous voucher was deleted; recreate failed. Correct the cause and Retry to restore it.' : ''}`.slice(0, 2000),
-        tallyResponse: result.raw?.slice(0, 7500), stopBatch: result.contextError === true,
+        tallyResponse: result.raw?.slice(0, 7500), stopBatch: result.contextError === true || result.requestRejected === true,
       };
     }
     if (message.action === 'Delete') deleted = true;

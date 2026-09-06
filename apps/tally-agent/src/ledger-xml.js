@@ -10,16 +10,15 @@ const { requireCompany } = require('./company');
  * wizard, which handles the GST "type of duty/tax" fields more reliably than
  * hand-built XML across TallyPrime versions.
  *
- * NAME.LIST is required, not optional: the NAME= attribute only identifies
- * WHICH master to act on, while <NAME.LIST> is what actually establishes the
- * master's name on a Create. Omitting it makes Tally reject every ledger
- * identically, which is a confusing failure to debug.
+ * Follow Tally's native Import Data ledger sample: NAME supplies the master
+ * name, PARENT supplies its group. Keep NAME.LIST for the primary alias too.
  */
 
 function ledgerNode(ledger, { withGst }) {
   const node = {
     '@NAME': ledger.name,
     '@ACTION': 'Create',
+    NAME: ledger.name,
     'NAME.LIST': { NAME: ledger.name },
     PARENT: ledger.parentGroup,
     ISDEEMEDPOSITIVE: 'No',
@@ -51,12 +50,14 @@ function ledgerNode(ledger, { withGst }) {
 function envelope(node, company) {
   const doc = {
     ENVELOPE: {
-      HEADER: { VERSION: '1', TALLYREQUEST: 'Import Data' },
+      // Native Import Data uses IMPORTDATA/REQUESTDESC/REQUESTDATA. The
+      // versioned Import/Data protocol instead uses TYPE/ID and DESC/DATA.
+      HEADER: { TALLYREQUEST: 'Import Data' },
       BODY: {
         IMPORTDATA: {
           REQUESTDESC: {
             REPORTNAME: 'All Masters',
-            STATICVARIABLES: { SVCURRENTCOMPANY: requireCompany(company) },
+            STATICVARIABLES: { SVCURRENTCOMPANY: requireCompany(company), SVEXPORTFORMAT: '$$SysName:XML' },
           },
           REQUESTDATA: {
             TALLYMESSAGE: { '@xmlns:UDF': 'TallyUDF', LEDGER: node },

@@ -114,6 +114,26 @@ test('GST errors are reported without stripping tax identity', async (t) => {
   await loop.runOnce(); assert.equal(s.imports.length,1); assert.equal(s.ledgerReports[0].status,'FAILED');
 });
 
+test('unknown ledger request stops before other ledgers or voucher dispatch', async (t) => {
+  const s = await setup(t, { ledgers: [
+    {id:'l1',name:'Sales A',parentGroup:'Sales Accounts'},
+    {id:'l2',name:'Sales B',parentGroup:'Sales Accounts'},
+  ], onImport: (res) => res.end('<RESPONSE>Unknown request, cannot be processed</RESPONSE>') });
+  await loop.runOnce();
+  assert.equal(s.imports.length, 1);
+  assert.equal(s.ledgerReports.length, 0);
+  assert.ok(!s.apiServer.requests.some((r) => r.path.includes('/pending?')));
+  assert.match(loop.getState().lastError, /Unknown request/);
+});
+
+test('unknown voucher request stops the batch and preserves its raw reply', async (t) => {
+  const raw = 'Unknown request, cannot be processed';
+  const s = await setup(t, { items: [item(), {...item(),id:'22222222-2222-4222-8222-222222222222'}], onImport: (res) => res.end(raw) });
+  await loop.runOnce();
+  assert.equal(s.imports.length, 1); assert.equal(s.reports.length, 1);
+  assert.equal(s.reports[0].status, 'FAILED'); assert.equal(s.reports[0].tallyResponse, raw);
+});
+
 test('cancellation of absent voucher is idempotent for a valid no-op', async (t) => {
   const s=await setup(t,{items:[item(1,'CANCEL')],onImport:(res) => res.end(importReply())});
   await loop.runOnce(); assert.equal(s.reports[0].status,'SYNCED'); assert.equal(s.imports.length,1);

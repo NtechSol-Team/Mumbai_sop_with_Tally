@@ -103,6 +103,33 @@ test('operation-aware counts and explicit no-op', () => {
   assert.equal(tally.interpret(importReply({ERRORS:1}), 'Create').isNoOp, undefined);
 });
 
+test('ledger creation uses the documented native Import Data format and direct master name', () => {
+  // https://help.tallysolutions.com/sample-xml/ — Accounting Masters / Ledger.
+  const { elements } = require('../src/xml-response');
+  const root = parseXml(buildLedgerEnvelope({ name: 'Sales & Food', parentGroup: 'Sales Accounts' }, ' A & B '));
+  const header = elements(root, 'HEADER')[0];
+  assert.deepEqual(header.children.map((n) => [n.name, n.text]), [['TALLYREQUEST', 'Import Data']]);
+  assert.equal(elements(root, 'REPORTNAME')[0].text, 'All Masters');
+  const ledger = elements(root, 'LEDGER')[0];
+  assert.equal(ledger.children.find((n) => n.name === 'NAME').text, 'Sales & Food');
+  assert.equal(elements(root, 'SVCURRENTCOMPANY')[0].text, ' A & B ');
+});
+
+for (const raw of ['Unknown request, cannot be processed', '<RESPONSE>Unknown Request, cannot be processed</RESPONSE>']) {
+  test('generic request rejection retains the real error: ' + raw, () => {
+    const result = tally.interpret(raw, 'Create');
+    assert.equal(result.ok, false); assert.equal(result.requestRejected, true);
+    assert.equal(result.raw, raw); assert.match(result.error, /Unknown request, cannot be processed/);
+    assert.ok(!result.isNoOp);
+  });
+}
+
+test('incomplete import diagnostics retain the response content', () => {
+  const raw = '<RESPONSE><DESCRIPTION>Custom import reply</DESCRIPTION></RESPONSE>';
+  const result = tally.interpret(raw, 'Create');
+  assert.equal(result.ok, false); assert.match(result.error, /Custom import reply/);
+});
+
 test('unsupported contracts and invalid amounts cannot reach XML posting', () => {
   const p = item(); p.payload.contractVersion = 2;
   assert.throws(() => messagesFor(p, 'A'), /Unsupported/);

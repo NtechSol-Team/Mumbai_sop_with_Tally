@@ -123,6 +123,12 @@ function describeNetworkError(err, c) {
 
 /** HTTP 200 is transport success only. Verify XML status and operation counts. */
 function interpret(body, action) {
+  // Some Tally builds return a generic request rejection as plain text or
+  // inside RESPONSE without LINEERROR. Preserve it instead of hiding it behind
+  // an incomplete-counts message. Never interpret this as a successful no-op.
+  if (/unknown\s+request[\s\S]{0,100}cannot\s+be\s+processed/i.test(body)) {
+    return { ok: false, requestRejected: true, error: 'Tally rejected the import request: Unknown request, cannot be processed.', raw: body };
+  }
   let root;
   try { root = parseXml(body); }
   catch (err) { return { ok: false, error: err.message, raw: body }; }
@@ -141,7 +147,8 @@ function interpret(body, action) {
   }
   if (!hasCounts || !elements(root, 'ERRORS').length ||
       !['CREATED', 'ALTERED', 'DELETED'].some((tag) => elements(root, tag).length)) {
-    return { ok: false, error: 'Tally returned no complete import result. No change has been confirmed.', raw: body };
+    const detail = body.trim().slice(0, 1000);
+    return { ok: false, error: `Tally returned no complete import result. No change has been confirmed. Reply: ${detail}`, raw: body };
   }
   const changed = counts.created + counts.altered + counts.deleted + counts.cancelled;
   if (!changed) {

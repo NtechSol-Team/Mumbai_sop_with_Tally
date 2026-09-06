@@ -120,6 +120,39 @@ Electron and headless have separate default config files; set
 
 ## Upgrading and verifying
 
+### v1.1.1: ledger import compatibility and diagnostics
+
+Ledger creation now follows the native `Import Data` example in
+[Tally's sample XML](https://help.tallysolutions.com/sample-xml/): the header
+contains `TALLYREQUEST` without the versioned protocol header, the master has a
+direct `NAME`, and the response format is explicitly XML. This addresses the
+request-format discrepancy found while investigating the user's HTTP-200
+"Unknown request, cannot be processed" response. Acceptance on the installed
+Tally build still needs the one-ledger check below; HTTP 200 is not success.
+
+Stop the normal agent first. From this directory, preview a missing ledger from
+the existing ERP mappings (requires pairing, Sync ON and auto-provision ON):
+
+```bat
+node src\diagnose-ledger.js
+```
+
+To attempt creation of **one** missing mapped ledger and print Tally's reply:
+
+```bat
+node src\diagnose-ledger.js --create
+```
+
+This diagnostic never pulls vouchers or acknowledges results to the ERP. A
+successful creation check requires both an accepted import response and the
+exact ledger name in a subsequent readback (`ok: true`, `existsAfter: true`).
+The next normal sync can discover and acknowledge that existing ledger.
+Unknown-request responses are now visible in the agent error; they abort the
+current cycle before further ledger imports or voucher dispatch. Normal polling
+will try again on its next cycle, so stop the agent while diagnosing a rejection.
+
+### Protocol compatibility
+
 This release uses **agent protocol 2**. Stop old agents, update the ERP API first,
 then update this agent and run `npm ci --omit=dev`. No database migration is
 required. The new agent refuses an old API before it posts vouchers. The new API

@@ -3,6 +3,37 @@
 Reviewed 6 September 2026. Starting checkout: `21664ec` (clean working tree).
 The findings below were established before implementation changes.
 
+## Live follow-up: v1.1.1 ledger import correction
+
+The operator subsequently confirmed v1.1.0 on the Tally PC, exact selection of
+`Food Compnay`, and successful ERP connectivity. Ledger creation then failed for
+35 mappings. A one-ledger diagnostic was reported as HTTP 200 with "Unknown
+request, cannot be processed". The exact original response bytes were not
+provided, so its complete XML/plain-text structure remains unverified.
+
+The ledger builder differed from Tally's documented native `Import Data` sample:
+it included `VERSION=1` (used with the separate `Import`/`TYPE=Data` protocol)
+and omitted a direct master `NAME`. v1.1.1 aligns it with the native sample,
+retains the primary alias and GST fields, and explicitly requests XML output.
+This is a request-format compatibility correction; which discrepancy caused
+the installed Tally build's rejection still requires live confirmation.
+
+The agent now exposes generic request rejections, includes a bounded response
+excerpt for incomplete import results, and stops the current batch on an
+unknown-request error. The new `src/diagnose-ledger.js` defaults to a read-only
+preview; `--create` attempts at most one missing mapped ledger, displays the
+reply, and checks exact ledger-name readback. It never pulls vouchers or reports
+ERP acknowledgements. No arbitrary company or ledger mapping is substituted.
+
+All **74 agent tests passed** after this follow-up, including 11 new tests for
+request structure, diagnostic boundaries, response visibility and batch stops.
+The existing protocol-2 cloud deployment supports v1.1.1; no API or database
+change is needed. The operator must update the Windows source and run the
+one-ledger diagnostic before resuming the full sync loop.
+
+Sources: [Tally native ledger sample](https://help.tallysolutions.com/sample-xml/)
+and [versioned request tags](https://help.tallysolutions.com/understanding-tally-xml-tags/).
+
 ## Scope and evidence
 
 The repository contains an Express/Prisma/PostgreSQL API, a Next.js frontend,
