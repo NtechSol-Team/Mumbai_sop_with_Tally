@@ -96,7 +96,7 @@ function buildEnvelope(payload, company, action) {
         IMPORTDATA: {
           REQUESTDESC: {
             REPORTNAME: 'Vouchers',
-            STATICVARIABLES: { SVCURRENTCOMPANY: company || '' },
+            STATICVARIABLES: { SVCURRENTCOMPANY: (company || '').trim() },
           },
           REQUESTDATA: {
             TALLYMESSAGE: {

@@ -34,17 +34,40 @@ function postXml(xml) {
   });
 }
 
+// A collection scoped to <TYPE>Company</TYPE> iterates the companies TallyPrime
+// has LOADED IN MEMORY — not the ones sitting on disk. That distinction is the
+// whole game here: a company can exist and still not be selected, and only a
+// selected company can receive a voucher.
+const OPEN_COMPANIES_XML =
+  '<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>MEACompanies</ID></HEADER>' +
+  '<BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT></STATICVARIABLES>' +
+  '<TDL><TDLMESSAGE><COLLECTION NAME="MEACompanies" ISMODIFY="No" ISINITIALIZE="No" ISOPTION="No" ISINTERNAL="No">' +
+  '<TYPE>Company</TYPE><NATIVEMETHOD>NAME</NATIVEMETHOD></COLLECTION></TDLMESSAGE></TDL>' +
+  '</DESC></BODY></ENVELOPE>';
+
+/** Parse company names out of a Tally response, whatever shape it used. */
+function parseCompanyNames(body) {
+  const names = new Set();
+  for (const m of body.matchAll(/<NAME>([\s\S]*?)<\/NAME>/gi)) if (m[1].trim()) names.add(m[1].trim());
+  for (const m of body.matchAll(/<COMPANY\b[^>]*\bNAME\s*=\s*"([^"]+)"/gi)) if (m[1].trim()) names.add(m[1].trim());
+  for (const m of body.matchAll(/<COMPANYNAME>([\s\S]*?)<\/COMPANYNAME>/gi)) if (m[1].trim()) names.add(m[1].trim());
+  return [...names];
+}
+
+const isCompanyContextError = (body) =>
+  /could not set[\s\S]{0,12}SVCurrentCompany/i.test(body) ||
+  /no company[\s\S]{0,20}(loaded|open|selected)/i.test(body);
+
 /**
  * The companies TallyPrime currently has open, exactly as Tally spells them.
- * Returns null (not []) if the probe itself failed, so callers can tell
- * "no companies open" apart from "couldn't ask".
+ * null (not []) if the probe itself failed — callers must tell "none open"
+ * apart from "couldn't ask".
  */
 async function listOpenCompanies() {
   try {
-    const probe = '<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Data</TYPE><ID>List of Companies</ID></HEADER><BODY><DESC></DESC></BODY></ENVELOPE>';
-    const { status, body } = await postXml(probe);
+    const { status, body } = await postXml(OPEN_COMPANIES_XML);
     if (status !== 200) return null;
-    return [...body.matchAll(/<NAME>([\s\S]*?)<\/NAME>/gi)].map((m) => m[1].trim()).filter(Boolean);
+    return parseCompanyNames(body);
   } catch {
     return null;
   }
@@ -52,43 +75,84 @@ async function listOpenCompanies() {
 
 /**
  * Is Tally reachable AND is the company we're supposed to post into actually
- * open? Answering only the first question is how a dashboard shows a healthy
- * green agent while every voucher fails against the wrong company — so this
- * reports the two separately.
+ * open under exactly the configured name?
+ *
+ * A green "reachable" light next to a company that isn't loaded is how every
+ * voucher fails identically with "Could not set SVCurrentCompany". So this does
+ * two things Tally itself doesn't make easy:
+ *   1. lists the LOADED companies (a <TYPE>Company</TYPE> collection), and
+ *   2. positively confirms the target by sending one scoped request AS that
+ *      company and checking Tally doesn't reject the context.
  */
 async function ping() {
   const c = config.get();
+  const wanted = (c.tallyCompany || '').trim();
   try {
-    const probe = '<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Data</TYPE><ID>List of Companies</ID></HEADER><BODY><DESC></DESC></BODY></ENVELOPE>';
-    const { status, body } = await postXml(probe);
+    const { status, body } = await postXml(OPEN_COMPANIES_XML);
     if (status !== 200) return { reachable: false, companyOpen: false, error: `Tally HTTP ${status}` };
 
-    if (!c.tallyCompany) {
+    const openCompanies = parseCompanyNames(body);
+
+    if (!wanted) {
       return {
-        reachable: true, companyOpen: false,
-        error: 'No Tally company name configured — set TALLY_COMPANY so vouchers cannot land in the wrong company.',
+        reachable: true, companyOpen: false, openCompanies,
+        error: 'No Tally company name set — configure TALLY_COMPANY so vouchers cannot land in the wrong company.',
       };
     }
-    // Tally lists the open companies as <NAME>..</NAME> entries. The ping check
-    // is deliberately loose on case/whitespace — but a voucher's SVCURRENTCOMPANY
-    // must match Tally *exactly*, so when the loose match passes on a name that
-    // isn't identical, say so and quote Tally's own spelling.
-    const openExact = [...body.matchAll(/<NAME>([\s\S]*?)<\/NAME>/gi)].map((m) => m[1].trim()).filter(Boolean);
-    const names = openExact.map((n) => n.toLowerCase());
-    const wanted = c.tallyCompany.trim().toLowerCase();
-    const companyOpen = names.length === 0 ? true : names.some((n) => n === wanted);
-    const exactMatch = openExact.some((n) => n === c.tallyCompany.trim());
+
+    // Positive confirmation: ask Tally for something trivial *as* this company.
+    // If the company isn't loaded (or the name is off), Tally answers with the
+    // very "Could not set SVCurrentCompany" error we're trying to pre-empt.
+    const scoped =
+      '<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>MEAPingCur</ID></HEADER>' +
+      '<BODY><DESC><STATICVARIABLES>' +
+      `<SVCURRENTCOMPANY>${wanted.replace(/[<&>]/g, ' ')}</SVCURRENTCOMPANY>` +
+      '<SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT></STATICVARIABLES>' +
+      '<TDL><TDLMESSAGE><COLLECTION NAME="MEAPingCur" ISMODIFY="No"><TYPE>Currency</TYPE></COLLECTION></TDLMESSAGE></TDL>' +
+      '</DESC></BODY></ENVELOPE>';
+    let confirmed = false;
+    let contextRejected = false;
+    try {
+      const r = await postXml(scoped);
+      if (r.status === 200) {
+        contextRejected = isCompanyContextError(r.body);
+        confirmed = !contextRejected;
+      }
+    } catch { /* fall back to the list match below */ }
+
+    const exactInList = openCompanies.some((n) => n === wanted);
+    const looseInList = openCompanies.find((n) => n.toLowerCase() === wanted.toLowerCase());
+    // Confirmed means Tally accepted SVCURRENTCOMPANY=<wanted> verbatim — nothing
+    // else to check. Otherwise fall back to an exact hit in the loaded list.
+    const companyOpen = confirmed || (!contextRejected && exactInList);
 
     let error = null;
     if (!companyOpen) {
-      error = `Tally is running but "${c.tallyCompany}" is not open (open: ${openExact.join(', ') || 'none'}).`;
-    } else if (openExact.length && !exactMatch) {
-      error = `Configured name "${c.tallyCompany}" differs from Tally's spelling "${openExact.find((n) => n.toLowerCase() === wanted)}" — vouchers post by exact match, so set TALLY_COMPANY to exactly that.`;
+      const list = openCompanies.length ? `open now: ${openCompanies.map((n) => `"${n}"`).join(', ')}` : 'no company is open';
+      error = looseInList && looseInList !== wanted
+        ? `Tally has "${looseInList}" open, but TALLY_COMPANY is "${wanted}". They must match exactly — case and spaces included. Set it to "${looseInList}".`
+        : `"${wanted}" is not open in Tally — ${list}. In Tally: press F3 (Company) - Select Company, pick it, then sit at the Gateway of Tally screen.`;
     }
-    return { reachable: true, companyOpen, exactMatch, openCompanies: openExact, error };
+
+    return { reachable: true, companyOpen, exactMatch: companyOpen, openCompanies, error };
   } catch (err) {
-    return { reachable: false, companyOpen: false, error: err.message || String(err) };
+    return { reachable: false, companyOpen: false, error: describeNetworkError(err, c) };
   }
+}
+
+/** A connection failure the operator can act on, not a raw Node error name. */
+function describeNetworkError(err, c) {
+  const code = err && (err.code || (Array.isArray(err.errors) && err.errors[0] && err.errors[0].code));
+  if (code === 'ECONNREFUSED' || err instanceof AggregateError) {
+    return `Nothing is listening on ${c.tallyHost}:${c.tallyPort}. Open TallyPrime, load the company, and turn on its HTTP server (F1 - Settings - Connectivity - "TallyPrime acts as": Both).`;
+  }
+  if (code === 'ETIMEDOUT' || /did not respond/.test(err && err.message)) {
+    return `Tally at ${c.tallyHost}:${c.tallyPort} did not respond. It may be busy in a dialog — leave it at the Gateway of Tally screen.`;
+  }
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') {
+    return `Cannot resolve the Tally host "${c.tallyHost}". Use "localhost" if the agent runs on the Tally PC, or the Tally PC's LAN IP.`;
+  }
+  return (err && err.message) || String(err);
 }
 
 /**

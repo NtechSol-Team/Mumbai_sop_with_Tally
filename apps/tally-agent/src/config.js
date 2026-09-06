@@ -50,7 +50,9 @@ function get() {
     agentToken: String(env.MUMBAI_ERP_TOKEN || f.agentToken || ''),
     tallyHost: String(env.TALLY_HOST || f.tallyHost || 'localhost'),
     tallyPort: Number(env.TALLY_PORT || f.tallyPort || 9000),
-    tallyCompany: String(env.TALLY_COMPANY || f.tallyCompany || ''),
+    // Trimmed: a stray space from a .bat file or a pasted value would break the
+    // exact-match Tally does on SVCURRENTCOMPANY.
+    tallyCompany: String(env.TALLY_COMPANY || f.tallyCompany || '').trim(),
     pollSeconds: Math.max(5, Number(env.POLL_SECONDS || f.pollSeconds || 20)),
     label: String(env.AGENT_LABEL || f.label || 'Tally PC'),
   };

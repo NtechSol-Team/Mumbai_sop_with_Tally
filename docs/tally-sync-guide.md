@@ -471,7 +471,7 @@ here with one of four states:
 
 | Tally's message | What it means | Fix |
 |---|---|---|
-| **`Could not set 'SVCurrentCompany' to '<name>'`** | The voucher named a company Tally can't switch to — either it isn't open, or the name isn't an **exact** match (Tally is case- and space-sensitive: `Mumbai Erp` ≠ `Mumbai ERP`). | Open the company in Tally (**F3 → Select Company**). Get its exact stored name from **F3 → Alter →** the *Name* field, and set the agent's *Tally company name* / `TALLY_COMPANY` to exactly that, then restart the agent. The agent's console and the dashboard now print the names Tally actually has open. |
+| **`Could not set 'SVCurrentCompany' to '<name>'`** | Tally can't switch its working context to a company by that name. See the dedicated section below. | Select the company in Tally and match the name exactly. |
 | **`Ledger '<name>' does not exist`** | A voucher line points at a ledger that isn't in this Tally company. | Fix that row in **Tally Sync → Ledger Mapping** to the name that exists, or create the ledger in Tally, then **Retry**. |
 | **`Voucher totals do not match`** | Debits ≠ credits in the built voucher — usually a GST detail on the source document. | Open the document in the ERP and check the tax split; if `Block on GST rate mismatch` is on it should have been caught earlier. |
 | **`Tally reported N error(s) but gave no message`** | Tally rejected the voucher without putting the reason in the usual field. | Click **Show Tally's reply** on the failed row — the full XML response is there, and the reason (a ledger name, a missing tax rate, a GST registration detail) is somewhere in it. |
@@ -480,6 +480,39 @@ here with one of four states:
 **Show Tally's reply** link — it opens Tally's raw XML response for that attempt,
 with a **Copy** button. When the one-line error isn't enough, that raw response
 always has the detail.
+
+### `Could not set 'SVCurrentCompany'` — the company-context error
+
+Every request the agent sends carries `<SVCURRENTCOMPANY>Your Company</SVCURRENTCOMPANY>`
+— it tells Tally which loaded company to act on. Tally's HTTP server **only works
+on companies already open in memory**; it will not load one from disk on demand.
+This error means Tally could not find an open company matching that name.
+
+Work through these in order, on the Tally PC:
+
+1. **Is the company actually open?** Look at the top of the TallyPrime window —
+   the open company's name is shown there. If it's blank or a different company:
+   **F3** (Company) → **Select Company** → pick it. Creating a company opens it;
+   restarting Tally does *not* re-open it unless *F1 → Settings → Startup* lists it.
+
+2. **Sit at the Gateway of Tally screen.** Tally can refuse HTTP requests while a
+   dialog or report with a prompt is open. Press **Esc** until you're at the
+   plain Gateway of Tally menu, and leave it there.
+
+3. **Match the name exactly.** Tally compares `SVCURRENTCOMPANY` character for
+   character — case, spaces and punctuation all count (`Food Company` ≠
+   `food company` ≠ `Food  Company`). Get the exact stored name from **F3 →
+   Alter → (select the company) →** the **Name** field. Copy it into the agent's
+   *Tally company name* (`TALLY_COMPANY` in `start-agent.bat`) — don't retype it.
+   Then restart the agent.
+
+4. **Only one company open** is simplest. If several are loaded, the agent still
+   targets the one it's configured for, but it's easy to misread which is which.
+
+The agent now checks all of this before it sends anything: it asks Tally for the
+list of **open** companies and confirms the configured one is among them, so the
+dashboard/console tells you *"'Food Company' is not open — open now: 'Mumbai ERP'"*
+instead of letting every voucher fail the same way.
 
 ---
 

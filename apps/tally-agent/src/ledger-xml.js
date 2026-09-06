@@ -56,7 +56,7 @@ function envelope(node, company) {
         IMPORTDATA: {
           REQUESTDESC: {
             REPORTNAME: 'All Masters',
-            STATICVARIABLES: { SVCURRENTCOMPANY: company || '' },
+            STATICVARIABLES: { SVCURRENTCOMPANY: (company || '').trim() },
           },
           REQUESTDATA: {
             TALLYMESSAGE: { '@xmlns:UDF': 'TallyUDF', LEDGER: node },
