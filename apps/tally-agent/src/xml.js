@@ -20,11 +20,12 @@ const { requireCompany } = require('./company');
 const BILLTYPE = { NEW: 'New Ref', AGAINST: 'Agst Ref', ADVANCE: 'Advance' };
 const money = (n) => Number(n).toFixed(2);
 
-function ledgerEntry(line) {
+function ledgerEntry(line, partyLedger) {
   const debit = line.drCr === 'DR';
   const node = {
     LEDGERNAME: line.ledger,
     ISDEEMEDPOSITIVE: debit ? 'Yes' : 'No',
+    ISPARTYLEDGER: line.ledger === partyLedger ? 'Yes' : 'No',
     AMOUNT: money(debit ? -line.amount : line.amount),
   };
   if (line.billAllocations && line.billAllocations.length) {
@@ -59,7 +60,9 @@ function voucherNode(payload, action) {
     '@REMOTEID': payload.dedupKey,
     '@VCHTYPE': payload.tallyVoucherType || defaultVchType(payload.voucherType),
     '@ACTION': action,
-    '@OBJVIEW': payload.voucherType === 'SALES' || payload.voucherType === 'PURCHASE' ? 'Invoice Voucher View' : 'Accounting Voucher View',
+    // ERP purchases and sales currently contain accounting lines, not item
+    // invoices. Keep the object and persisted views consistent with that data.
+    '@OBJVIEW': 'Accounting Voucher View',
     DATE: payload.date,
     EFFECTIVEDATE: payload.date,
     VOUCHERTYPENAME: payload.tallyVoucherType || defaultVchType(payload.voucherType),
@@ -70,11 +73,14 @@ function voucherNode(payload, action) {
   };
   if (action === 'Delete') return v;
 
+  v.PERSISTEDVIEW = 'Accounting Voucher View';
+  v.ISINVOICE = 'No';
+
   if (payload.partyLedger) v.PARTYLEDGERNAME = payload.partyLedger;
   if (payload.placeOfSupplyStateCode) v.PLACEOFSUPPLY = payload.placeOfSupplyStateCode;
 
   if (payload.lines && payload.lines.length) {
-    v['ALLLEDGERENTRIES.LIST'] = payload.lines.map(ledgerEntry);
+    v['ALLLEDGERENTRIES.LIST'] = payload.lines.map((line) => ledgerEntry(line, payload.partyLedger));
   }
   if (payload.inventory && payload.inventory.length) {
     v['ALLINVENTORYENTRIES.LIST'] = payload.inventory.map(inventoryEntry);

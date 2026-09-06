@@ -5,6 +5,7 @@ import { splitGst } from '../../shared/utils/gst';
 import type { TallyConfig } from './tally.config';
 import { loadLedgerIndex, resolveLedger, type LedgerIndex } from './tally.config';
 import { TallyBuildError, TallyDeferError, type TallyLedgerLine, type TallyVoucherPayload } from './tally.types';
+import { parentVoucherWaitReason } from './tally.dependencies';
 
 type QueueRow = Prisma.TallySyncQueueGetPayload<Record<string, never>>;
 
@@ -43,24 +44,16 @@ function cancelPayload(row: QueueRow): TallyVoucherPayload {
  * are wrong, which is the exact figure this integration exists to make
  * trustworthy. So hold the payment until its invoice is in.
  *
- * Only PENDING blocks. A parent that is FAILED, EXCLUDED or absent will never
- * arrive, and waiting forever helps nobody — post it and let the accountant see
- * both rows.
+ * FAILED, EXCLUDED and missing parents also block. Posting an Agst Ref payment
+ * does not repair a missing invoice; the operator must resolve the parent.
  */
 async function assertParentVoucherSynced(
   parentType: 'SALES_BILL' | 'PURCHASE_BILL',
   parentId: string,
   label: string,
 ): Promise<void> {
-  const parent = await prisma.tallySyncQueue.findUnique({
-    where: { entityType_entityId: { entityType: parentType, entityId: parentId } },
-    select: { status: true, docNumber: true },
-  });
-  if (parent?.status === 'PENDING') {
-    throw new TallyDeferError(
-      `Waiting for ${parent.docNumber ?? label} to reach Tally first, so this payment allocates against it correctly.`,
-    );
-  }
+  const reason = await parentVoucherWaitReason(parentType, parentId, label);
+  if (reason) throw new TallyDeferError(reason);
 }
 
 /**

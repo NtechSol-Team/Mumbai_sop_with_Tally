@@ -10,6 +10,7 @@ const tally = require('../src/tally-client');
 const erp = require('../src/erp-client');
 const journal = require('../src/result-store');
 const { server, collection, importReply, item } = require('./helpers');
+const { parseXml, elements } = require('../src/xml-response');
 
 async function setup(t, options = {}) {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'tally-sync-test-'));
@@ -162,8 +163,9 @@ test('stop during an in-flight tick cannot resurrect polling', async (t) => {
 for (const type of ['SALES','RECEIPT','PURCHASE','PAYMENT','JOURNAL']) test(`existing ${type} accounting workflow keeps ledger signs and amounts`,async(t)=>{
   const s=await setup(t,{items:[item(0,'CREATE',type)]}); await loop.runOnce();
   assert.equal(s.reports[0].status,'SYNCED');
-  assert.match(s.imports[0],/<ISDEEMEDPOSITIVE>Yes<\/ISDEEMEDPOSITIVE><AMOUNT>-100.00<\/AMOUNT>/);
-  assert.match(s.imports[0],/<ISDEEMEDPOSITIVE>No<\/ISDEEMEDPOSITIVE><AMOUNT>100.00<\/AMOUNT>/);
+  const entries = elements(parseXml(s.imports[0]), 'ALLLEDGERENTRIES.LIST');
+  assert.deepEqual(entries.map((entry) => [elements(entry, 'ISDEEMEDPOSITIVE')[0].text, elements(entry, 'AMOUNT')[0].text]),
+    [['Yes', '-100.00'], ['No', '100.00']]);
 });
 
 test('unsupported stock transfer cannot silently post only its destination',async(t)=>{

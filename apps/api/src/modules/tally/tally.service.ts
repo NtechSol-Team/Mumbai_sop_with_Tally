@@ -8,6 +8,7 @@ import { buildPaginationMeta, toSkipTake } from '../../shared/utils/pagination';
 import { enqueue, JobName } from '../../jobs/queue';
 import type { AuthUser } from '../../shared/types/api';
 import { getTallyConfig, getLedgerMap, updateTallyConfig, ensureTallyDefaults } from './tally.config';
+import { paymentVoucherWaitReason } from './tally.dependencies';
 
 const AGENT_OFFLINE_AFTER_MS = 3 * 60_000;
 
@@ -182,27 +183,44 @@ export async function agentPending(limit: number) {
   });
   if (exhausted.count) logger.warn({ count: exhausted.count }, 'tally: vouchers exhausted their dispatch attempts');
 
-  const rows = await prisma.tallySyncQueue.findMany({
-    where: {
-      status: TallySyncStatus.PENDING,
-      payloadJson: { not: Prisma.DbNull },
-      attempts: { lt: MAX_DISPATCH_ATTEMPTS },
-      entityType: { in: eligibleTypes },
-      ...(cfg.syncFromDate ? { entityDate: { gte: cfg.syncFromDate } } : {}),
-      ...leaseAvailable,
-    },
-    orderBy: { createdAt: 'asc' },
-    take: Math.min(limit, 25),
-  });
-  const claimed = [];
-  for (const row of rows) {
-    // Compare-and-swap: a concurrent pull or source edit cannot claim this
-    // snapshot twice or dispatch its now-stale payload.
-    const result = await prisma.tallySyncQueue.updateMany({
-      where: { id: row.id, revision: row.revision, status: TallySyncStatus.PENDING, lastAttemptAt: row.lastAttemptAt, attempts: row.attempts },
-      data: { attempts: { increment: 1 }, lastAttemptAt: new Date() },
+  const batchSize = Math.max(1, Math.min(limit, 25));
+  const claimed: Prisma.TallySyncQueueGetPayload<Record<string, never>>[] = [];
+  let cursor: string | undefined;
+  // Held payments must not hide later invoices or unrelated ready vouchers.
+  while (claimed.length < batchSize) {
+    const rows = await prisma.tallySyncQueue.findMany({
+      where: {
+        status: TallySyncStatus.PENDING,
+        payloadJson: { not: Prisma.DbNull },
+        attempts: { lt: MAX_DISPATCH_ATTEMPTS },
+        entityType: { in: eligibleTypes },
+        ...(cfg.syncFromDate ? { entityDate: { gte: cfg.syncFromDate } } : {}),
+        ...leaseAvailable,
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: batchSize,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
-    if (result.count) claimed.push(row);
+    for (const row of rows) {
+      const waiting = await paymentVoucherWaitReason(row);
+      if (waiting) {
+        await prisma.tallySyncQueue.updateMany({
+          where: { id: row.id, revision: row.revision, status: TallySyncStatus.PENDING, lastAttemptAt: row.lastAttemptAt, attempts: row.attempts },
+          data: { errorMessage: waiting },
+        });
+        continue;
+      }
+      // Compare-and-swap: a concurrent pull or source edit cannot claim this
+      // snapshot twice or dispatch its now-stale payload.
+      const result = await prisma.tallySyncQueue.updateMany({
+        where: { id: row.id, revision: row.revision, status: TallySyncStatus.PENDING, lastAttemptAt: row.lastAttemptAt, attempts: row.attempts },
+        data: { attempts: { increment: 1 }, lastAttemptAt: new Date() },
+      });
+      if (result.count) claimed.push(row);
+      if (claimed.length === batchSize) break;
+    }
+    if (rows.length < batchSize) break;
+    cursor = rows[rows.length - 1].id;
   }
   return claimed.map((r) => ({ id: r.id, dedupKey: r.dedupKey, revision: r.revision, payload: r.payloadJson }));
 }

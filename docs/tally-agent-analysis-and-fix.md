@@ -372,3 +372,56 @@ silently mass-requeued. Untouched claimed rows after a mid-batch failure can wai
 for the 30-minute claim expiry. For live use, verify one of each accounting
 voucher type, an edit, a cancellation and a repeated acknowledgement in a
 throwaway company on the installed Tally build before relying on real books.
+
+
+## Purchase exception follow-up (agent 1.1.3)
+
+Four operator screenshots on 2026-09-06 identify two retained Purchase
+exceptions, PB-2026-00002 (supplier reference 000459) and PB-2026-00003
+(reference 00909), in Food Compnay. Both say “No accounting or inventory entries
+are available”; voucher headers and narration survived, ledger amounts did not.
+This is separate from the earlier company mismatch and ledger envelope issue.
+
+The actual `buildPurchase` builds balanced supplier credit, purchase/expense/
+asset debit, GST input debit and round-off lines. It does not construct inventory
+invoice lines. The agent's `voucherNode` nevertheless selected Invoice Voucher
+View for every Purchase/Sales and omitted the persisted view and invoice flag.
+The correction makes accounting voucher mode explicit and adds the party-ledger
+flag. This is a code-level format defect consistent with the screenshots, not
+proof that no other installation-specific rejection can occur. A live import
+must confirm that Tally retains the corrected entries. No GST or company names
+were changed to hide the error.
+
+A separate proven ordering defect allowed supplier payment after purchase
+failure: `assertParentVoucherSynced` blocked only PENDING parents. It now shares
+`parentVoucherWaitReason` with dispatch and requires SYNCED. Dispatch also reads
+the actual payment's parent ID, so prebuilt payloads do not bypass the fix.
+Missing source payments are held; advances without bills and cancellations
+retain their existing behavior. Held dispatch rows retain their attempts and
+are skipped during cursor traversal so later invoices can proceed. This does
+not create cross-system atomicity; source edits after the dispatch check and
+legacy payments already posted remain reconciliation concerns.
+
+Changed files:
+- `apps/tally-agent/src/xml.js`: consistent accounting view, explicit invoice
+  flag and party ledger flags, keeping signed amounts and bill references.
+- `apps/tally-agent/src/xml-response.js`: actionable import-exception fallback.
+- `apps/tally-agent/package.json` and `package-lock.json`: agent 1.1.3.
+- `apps/api/src/modules/tally/tally.dependencies.ts`: shared parent status check
+  and dispatch-time source-link lookup.
+- `apps/api/src/modules/tally/tally.builder.ts`: defer until confirmed parent.
+- `apps/api/src/modules/tally/tally.service.ts`: recheck built payment dependencies
+  and scan past held rows without consuming their attempts.
+- `apps/tally-agent/test/voucher-xml.test.js`, `test/sync.test.js`, and
+  `apps/api/test/tally.test.cjs`: structural XML, accounting, response and
+  dependency regression coverage.
+- Agent README and this audit: release notes, limitations and recovery sequence.
+
+Validation: 86 agent tests, 23 API tests and API production build passed locally.
+No production financial records were changed by these tests. Existing failed
+purchase exceptions and the successful payment require operator-side review;
+shipping code does not automatically repair those historical records.
+
+References:
+- https://help.tallysolutions.com/sample-xml/
+- https://help.tallysolutions.com/import-data-errors-and-resolutions/

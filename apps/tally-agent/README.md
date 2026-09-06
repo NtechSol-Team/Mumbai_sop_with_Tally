@@ -120,6 +120,46 @@ Electron and headless have separate default config files; set
 
 ## Upgrading and verifying
 
+### v1.1.3: accounting voucher entries and payment dependencies
+
+The operator's Tally screenshots show purchase vouchers PB-2026-00002 and
+PB-2026-00003 retained as import exceptions with no accounting entries. Their
+headers and narration are present. The previous serializer marked Sales and
+Purchase as `Invoice Voucher View`, although the ERP builds accounting-only
+ledger lines, and omitted `PERSISTEDVIEW` and `ISINVOICE`.
+
+The serializer now explicitly uses `OBJVIEW="Accounting Voucher View"`,
+`PERSISTEDVIEW=Accounting Voucher View`, and `ISINVOICE=No`. Party ledger entries
+carry `ISPARTYLEDGER=Yes`; other entries carry `No`. Voucher types, references,
+amount signs, GST ledger lines and company spelling are preserved. This matches
+[Tally's documented accounting voucher mode](https://help.tallysolutions.com/sample-xml/).
+It addresses the identified format inconsistency; acceptance on the operator's
+Tally installation still requires a controlled live retry.
+
+The matching API change holds invoice-linked payments until the parent queue
+row is `SYNCED`. It rechecks existing built payments at dispatch, preserves
+advances and cancellations, and scans past held payments to find other ready
+vouchers. Previously FAILED, EXCLUDED and missing parent rows allowed payments
+through. Held rows consume no dispatch attempt. Already synced payments are not
+reposted or removed. There is no atomic transaction spanning ERP and Tally: a
+parent can still change after the final server check.
+
+Responses with `EXCEPTIONS > 0` remain failures even when `ERRORS=0`; absent a
+specific message, the agent now directs the operator to Tally's Import Exceptions
+report. The raw response remains available. Validation: 86 agent tests, 23 API
+tests, and API production build pass; these do not substitute for live Tally
+acceptance.
+
+For recovery, stop the agent, update to 1.1.3, and run `--check`. Back up the
+selected Tally company and inspect both the Day Book and retained import
+exceptions before retrying an affected bill. Do not retry a bill already in the
+books or recreate its successful payment. Remove an empty retained exception
+only after confirming its company, voucher number, date and absence of ledger
+amounts, then retry that one FAILED purchase from the ERP Tally queue. Verify
+its ledgers, totals and bill reference in Tally before processing the next bill.
+Do not use a bulk delete or bulk retry. A manually repaired exception must be
+reconciled with the ERP queue instead of blindly reimported.
+
 ### v1.1.2: ERP timeout reporting
 
 The operator confirmed that v1.1.1 created a ledger (`CREATED=1`, `ERRORS=0`)

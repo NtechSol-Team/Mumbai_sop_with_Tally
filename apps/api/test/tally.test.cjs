@@ -26,6 +26,7 @@ function service(prisma,cfg=defaults) {
     '../../shared/utils/pagination':{},
     '../../jobs/queue':{enqueue:async()=>{},JobName:{}},
     './tally.config':{getTallyConfig:async()=>cfg},
+    './tally.dependencies': load('modules/tally/tally.dependencies.ts', {'../../config/prisma':{prisma}}),
   });
 }
 const row=()=>({id:'row1',revision:3,status:'PENDING',attempts:0,lastAttemptAt:null,dedupKey:'key',payloadJson:{meta:{revision:3}}});
@@ -188,4 +189,73 @@ test('source edit during voucher build cannot publish the old revision or report
   });
   await actual.tallyBuildVouchersHandler([]);
   assert.equal(live.payloadJson,null); assert.equal(live.revision,3); assert.equal(emitted,false);
+});
+
+for (const status of ['PENDING','FAILED','EXCLUDED',null,'SYNCED']) {
+  test(`payment dependencies require a confirmed parent (${status ?? 'missing'})`, async () => {
+    const queries=[];
+    const prisma={tallySyncQueue:{findUnique:async(args)=>{queries.push(args);return status ? {status,docNumber:'PB-TEST'} : null;}}};
+    const actual=load('modules/tally/tally.dependencies.ts',{'../../config/prisma':{prisma}});
+    const result=await actual.parentVoucherWaitReason('PURCHASE_BILL','bill1','purchase bill');
+    if (status==='SYNCED') assert.equal(result,null);
+    else assert.match(result,new RegExp(status ?? 'not queued'));
+    assert.equal(queries[0].where.entityType_entityId.entityId,'bill1');
+  });
+}
+
+for (const entityType of ['SUPPLIER_PAYMENT','PAYMENT_IN']) {
+  test(`prebuilt ${entityType} is held without consuming attempts until its actual parent is synced`, async () => {
+    const q={...row(),entityType,entityId:'payment1'}, updates=[];
+    let parentStatus='FAILED';
+    const prisma={tallyConfig:{update:async()=>{}},
+      supplierPayment:{findUnique:async()=>({supplierBillId:'actual-bill'})},
+      payment:{findUnique:async()=>({billId:'actual-bill'})},
+      tallySyncQueue:{findMany:async()=>[q],findUnique:async(args)=>{
+        assert.equal(args.where.entityType_entityId.entityId,'actual-bill');
+        return {status:parentStatus,docNumber:'BILL-1'};
+      },updateMany:async(args)=>{updates.push(args);return {count:args.where.id ? 1 : 0};}},
+    };
+    const actual=service(prisma);
+    assert.deepEqual(await actual.agentPending(25),[]);
+    assert.match(updates.at(-1).data.errorMessage,/FAILED/);
+    assert.ok(!updates.some((u)=>u.data.attempts));
+    parentStatus='SYNCED';
+    assert.equal((await actual.agentPending(25)).length,1);
+    assert.deepEqual(updates.at(-1).data.attempts,{increment:1});
+  });
+}
+
+test('advance receipts, cancellation payloads and unrelated vouchers bypass invoice dependencies', async()=>{
+  const actual=load('modules/tally/tally.dependencies.ts',{'../../config/prisma':{prisma:{payment:{findUnique:async()=>({billId:null})}}}});
+  assert.equal(await actual.paymentVoucherWaitReason({entityType:'PAYMENT_IN',entityId:'advance',payloadJson:{action:'CREATE'}}),null);
+  assert.equal(await actual.paymentVoucherWaitReason({entityType:'SUPPLIER_PAYMENT',entityId:'deleted',payloadJson:{action:'CANCEL'}}),null);
+  assert.equal(await actual.paymentVoucherWaitReason({entityType:'PURCHASE_BILL',entityId:'bill',payloadJson:{action:'CREATE'}}),null);
+});
+
+test('held payments do not starve later invoices in the dispatch queue', async()=>{
+  const held={...row(),entityType:'SUPPLIER_PAYMENT',entityId:'payment1'};
+  const bill={...row(),id:'bill-row',entityType:'PURCHASE_BILL',entityId:'bill1'};
+  const queries=[],updates=[];
+  const prisma={tallyConfig:{update:async()=>{}},supplierPayment:{findUnique:async()=>({supplierBillId:'bill1'})},tallySyncQueue:{
+    findUnique:async()=>({status:'PENDING',docNumber:'PB-1'}),
+    findMany:async(args)=>{queries.push(args);return args.cursor ? [bill] : [held];},
+    updateMany:async(args)=>{updates.push(args);return {count:args.where.id ? 1 : 0};},
+  }};
+  const result=await service(prisma).agentPending(1);
+  assert.deepEqual(result.map((r)=>r.id),['bill-row']);
+  assert.deepEqual(queries[1].cursor,{id:'row1'});
+  assert.equal(updates.filter((u)=>u.data.attempts).length,1);
+});
+
+test('supplier payment builder defers a failed purchase instead of constructing an Agst Ref voucher', async()=>{
+  const types=load('modules/tally/tally.types.ts',{});
+  const prisma={supplierPayment:{findUnique:async()=>({bill:{id:'bill1',isGstBill:true,outletId:null}})},
+    tallySyncQueue:{findUnique:async()=>({status:'FAILED',docNumber:'PB-1'})}};
+  const actual=load('modules/tally/tally.builder.ts',{
+    '../../config/prisma':{prisma}, '../../config/env':{env:{}}, '../../shared/utils/gst':{},
+    './tally.types':types, './tally.config':{loadLedgerIndex:async()=>({}),getTallyConfig:async()=>defaults},
+    './tally.dependencies':load('modules/tally/tally.dependencies.ts',{'../../config/prisma':{prisma}}),
+  });
+  await assert.rejects(actual.buildVoucher({...row(),entityType:'SUPPLIER_PAYMENT',entityId:'payment1'}),
+    (error)=>error instanceof types.TallyDeferError && /PB-1.*FAILED/.test(error.message));
 });

@@ -46,7 +46,12 @@ function responseError(root) {
   const errorCount = ['ERRORS', 'EXCEPTIONS'].some((tag) => elements(root, tag).some((n) => n.text.trim() !== '0'));
   if (!messages.length && (failedStatus || errorCount)) {
     messages.push(...elements(root, 'DESC').map(textOf).filter((s) => s.trim()));
-    if (!messages.length) messages.push('Tally rejected the request without an error description. Inspect the raw response.');
+    if (!messages.length) {
+      const exceptions = elements(root, 'EXCEPTIONS').find((n) => /^[1-9]\d*$/.test(n.text.trim()));
+      messages.push(exceptions
+        ? `Tally reported ${exceptions.text.trim()} import exception(s). In the selected Tally company, open Alt+O (Import) > Exceptions > Voucher-Related Exceptions for the reason. Review any retained exception before retrying; no successful import has been confirmed.`
+        : 'Tally rejected the request without an error description. Inspect the raw response.');
+    }
   }
   return messages.length ? [...new Set(messages)].join(' | ').trim() : null;
 }
