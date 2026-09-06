@@ -47,6 +47,27 @@ requirement is that the PC can browse the internet.
 
 ---
 
+## 1a. The whole setup, in order
+
+Each step links to its section. Do them top to bottom.
+
+| # | Step | Where | One time? |
+|---|---|---|---|
+| 1 | Install TallyPrime, licence it | Office PC | yes — [Part 0.1–0.2](#2b-part-0--install-tallyprime-and-create-the-company) |
+| 2 | Create the company, enable GST | Tally | yes — [Part 0.3–0.4](#2b-part-0--install-tallyprime-and-create-the-company) |
+| 3 | Fill in Business Profile (name, GSTIN, **partner names**) | ERP → Settings | yes — [Part 0.5](#2b-part-0--install-tallyprime-and-create-the-company) |
+| 4 | Turn on Tally's HTTP server (port 9000) | Tally | yes — [Part 1](#3-part-1--turn-on-tallys-http-server-one-time-on-the-tally-pc) |
+| 5 | Install Node + Git, get the agent running | Office PC | yes — [Part 2](#4-part-2--run-the-sync-agent-on-the-tally-pc) |
+| 6 | Generate a pairing token, connect the agent | ERP + agent | yes — [Part 3](#5-part-3--pair-the-agent) |
+| 7 | Map every ledger to your Tally chart of accounts | ERP → Tally Sync | yes — [Part 4](#6-part-4--map-your-ledgers) |
+| 8 | Create the 6 GST ledgers in Tally by hand | Tally | yes — [Part 6 / 8a](#create-the-6-gst-ledgers-by-hand-on-purpose) |
+| 9 | Set the accounting rules | ERP → Tally Sync → Settings | yes — [Part 5](#7-part-5--set-the-accounting-rules) |
+| 10 | Set the cutover date, push one test voucher, verify in Tally | ERP + Tally | yes — [Part 6](#8-part-6--go-live) |
+| 11 | Turn Sync ON | ERP → Tally Sync | — |
+| — | Watch the Sync Dashboard | ERP | daily — [Part 7](#9-part-7--day-to-day-the-sync-dashboard) |
+
+---
+
 ## 2. Before you start — what you need
 
 From the **accountant / CA**:
@@ -58,12 +79,100 @@ From the **accountant / CA**:
       the GST ledgers (Output/Input CGST/SGST/IGST), sales, purchases, and the
       main expense heads
 - [ ] Each **franchise outlet's GSTIN**
+- [ ] The **real names of any business partners** who pay company expenses from
+      their own pocket (for the Business Profile — see Part 0.5)
 - [ ] Answers to the accounting choices in **Part 5**
 
 From **whoever runs the office PC**:
 
-- [ ] TallyPrime **7.1** installed, licensed, company created/loaded
-- [ ] Admin access to that PC to install the agent
+- [ ] A **Windows PC** (Windows 10 or 11) that stays on during business hours
+- [ ] Admin access to that PC
+- [ ] The PC can browse the internet
+
+If TallyPrime isn't installed yet, **Part 0** below does it. If it is, skip to
+Part 1.
+
+---
+
+## 2b. Part 0 — Install TallyPrime and create the company
+
+Do this once, on the office PC that will run Tally. Skip any step already done.
+
+### 0.1 — Download and install TallyPrime
+
+1. On the office PC, open a browser and go to **`https://tallysolutions.com`** →
+   **Download** (or search "TallyPrime download"). Download the latest
+   **TallyPrime** installer (Release 6.x / 7.x — the sync targets the 7.x XML
+   format and is backward-compatible with 6.x).
+2. Run the downloaded `setup.exe`.
+   - **Application path** — leave the default (`C:\Program Files\TallyPrime`).
+   - **Data path** — leave the default, **or** point it at a folder you back up
+     (e.g. `D:\TallyData`). Note this path; it's where the company lives.
+3. Click **Install**, then **Start TallyPrime**.
+
+### 0.2 — Licence
+
+- **New licence:** on first launch pick **Activate New Licence**, enter the
+  serial number and Tally.NET credentials from your TallyPrime purchase, and
+  activate online.
+- **Existing licence on another PC:** pick **Use Licence from Network** if that
+  PC is on the same LAN, or **Reactivate Existing Licence** with the same
+  account.
+- **No licence yet / just testing:** pick **Continue in Educational Mode**. It
+  works for testing the sync but **only lets you enter vouchers dated the 1st,
+  2nd or last two days of a month** — fine for a smoke test, not for go-live.
+
+### 0.3 — Create the company
+
+From the TallyPrime start screen: **Create Company** (or **Alt+F3** →
+*Create Company* later).
+
+| Field | What to enter |
+|---|---|
+| **Company name** | The client's registered business name. **Write this down exactly** — the agent's `TALLY_COMPANY` value must match it character-for-character. |
+| **Mailing name / address** | As on the GST certificate. State: **Maharashtra**. |
+| **State** | **Maharashtra** |
+| **PIN / phone / email** | The client's |
+| **Financial year begins** | `1-Apr-2025` (or the correct FY start) |
+| **Books begin** | Same as FY start, or the go-live date if this company only ever holds synced data |
+| **Base currency** | `INR` (default) |
+
+Press **Ctrl+A** to save.
+
+### 0.4 — Enable GST in the company
+
+1. From the **Gateway of Tally**, press **F11** (Company Features).
+2. Set **Enable Goods and Services Tax (GST)** → **Yes**, press **Enter** into
+   the GST details screen.
+3. Fill in:
+   - **State** — Maharashtra
+   - **Registration type** — Regular
+   - **GSTIN/UIN** — the client's 15-character GSTIN
+   - **Applicable from** — the GST registration date (or FY start)
+   - **Periodicity** — Monthly (or Quarterly if the client files QRMP)
+4. **Ctrl+A** to save, **Ctrl+A** again to save Company Features.
+
+> You do **not** need to set up tax rates, HSN codes or stock items in Tally.
+> The ERP sends every voucher with its exact tax amounts already computed —
+> Tally only records them.
+
+### 0.5 — Fill in the ERP's Business Profile
+
+In **Mumbai ERP → Settings → Business Profile → Edit**:
+
+| Field | Why it matters for the sync |
+|---|---|
+| **Registered (legal) name** | Printed on invoices; should match the Tally company's mailing name |
+| **GSTIN** | Must be the **same GSTIN** as in Tally (step 0.4). The sync decides CGST/SGST vs IGST by comparing this state code (27) to each outlet's. |
+| **Partner 1 / Partner 2 name** | If a partner ever pays a business expense from their own pocket, that expense posts to a **"<name> Current A/c"** ledger in Tally. Enter the real partner names here **before** the first such expense syncs. Leave blank if the business has no partner accounts — the fallback labels "Partner 1 / Partner 2" are used. |
+| UPI ID / payee name | Not used by the Tally sync (it's the franchise-payment QR), but set it while you're here. |
+
+> **Partner names are configuration, not code.** Renaming a partner here later
+> does **not** rename a ledger already created in Tally — if a wrong-named
+> partner ledger ("Partner 1 Current A/c", or a name from an earlier test) has
+> already reached Tally, delete that ledger in Tally once it has no vouchers
+> against it (**Alt+G → Chart of Accounts → Ledgers →** select it **→ Alt+D**),
+> then let the sync recreate it with the right name on its next run.
 
 ---
 
