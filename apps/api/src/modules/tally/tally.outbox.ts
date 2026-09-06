@@ -1,4 +1,5 @@
 import { Prisma, TallyEntityType, TallyVoucherType, TallySyncStatus } from '@prisma/client';
+import type { TallyVoucherPayload } from './tally.types';
 
 /**
  * The transactional outbox for the Tally sync.
@@ -103,18 +104,31 @@ export async function markTallyDeleted(
 ): Promise<void> {
   const row = await tx.tallySyncQueue.findUnique({
     where: { entityType_entityId: { entityType, entityId } },
-    select: { id: true, status: true },
   });
   if (!row) return;
   // An EXCLUDED row was never in Tally — nothing to cancel.
   if (row.status === TallySyncStatus.EXCLUDED) return;
+
+  // Capture the cancellation before callers hard-delete payroll expenses or
+  // supplier payments. The worker must not depend on a source that is now gone.
+  const previous = row.payloadJson as unknown as TallyVoucherPayload | null;
+  const date = row.entityDate;
+  const cancellation: TallyVoucherPayload = {
+    contractVersion: 1, action: 'CANCEL',
+    voucherType: previous?.voucherType ?? row.voucherType,
+    ...(previous?.tallyVoucherType ? { tallyVoucherType: previous.tallyVoucherType } : {}),
+    date: previous?.date ?? `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`,
+    voucherNumber: previous?.voucherNumber ?? row.docNumber ?? row.entityId,
+    narration: 'Cancelled in Mumbai ERP', dedupKey: row.dedupKey, lines: [],
+    meta: { entityType: row.entityType, entityId: row.entityId, revision: row.revision + 1 },
+  };
 
   await tx.tallySyncQueue.update({
     where: { id: row.id },
     data: {
       revision: { increment: 1 },
       status: TallySyncStatus.PENDING,
-      payloadJson: Prisma.DbNull,
+      payloadJson: cancellation as unknown as Prisma.InputJsonValue,
       errorMessage: null,
       attempts: 0,
       lastAttemptAt: null,

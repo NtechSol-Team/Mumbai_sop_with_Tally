@@ -83,12 +83,12 @@ function AgentStatusBar() {
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-body font-medium">
-          Sync agent {online ? 'online' : 'not connected'}
+          Sync agent {online ? 'online (heartbeat received)' : 'not connected'}
           {data?.config.agentLabel ? ` · ${data.config.agentLabel}` : ''}
         </p>
         <p className="text-caption text-muted-foreground">
           {data?.config.tallyCompanyName ? `Tally company: ${data.config.tallyCompanyName} · ` : ''}
-          One-way push, ERP → Tally. {enabled ? 'Sync is ON.' : 'Sync is OFF — turn it on in Settings once mapping is done.'}
+          Check the local agent for Tally connection and company validation. {enabled ? 'Sync is ON.' : 'Sync is OFF — turn it on in Settings once mapping is done.'}
         </p>
       </div>
       <Badge variant={enabled ? 'success' : 'neutral'}>{enabled ? 'Sync ON' : 'Sync OFF'}</Badge>
@@ -233,7 +233,7 @@ function QueueRowView({ r, onRetry, retrying }: { r: QueueRow; onRetry: (id: str
         )}
         {r.status === 'EXCLUDED' && <p className="text-caption text-muted-foreground">{r.excludedReason}</p>}
         {r.status === 'SYNCED' && <p className="text-caption text-muted-foreground">Tally id {r.tallyVoucherId ?? '—'}</p>}
-        {r.status === 'PENDING' && <p className="text-caption text-muted-foreground">{r.isReady ? 'Ready — agent will post it' : 'Preparing the voucher'}</p>}
+        {r.status === 'PENDING' && <p className="text-caption text-muted-foreground">{r.errorMessage || (r.isReady ? 'Ready — agent will post it' : 'Preparing the voucher')}</p>}
       </TD>
       <TD className="text-right">
         {r.status === 'FAILED' && (
@@ -268,7 +268,7 @@ function QueueRowView({ r, onRetry, retrying }: { r: QueueRow; onRetry: (id: str
 
 /* ─────────────────────────── Settings ─────────────────────────── */
 
-const TOGGLE_GROUPS: Array<{ title: string; items: Array<{ key: keyof TallyConfig; label: string; hint?: string }> }> = [
+const TOGGLE_GROUPS: Array<{ title: string; items: Array<{ key: keyof TallyConfig; label: string; hint?: string; disabled?: boolean }> }> = [
   {
     title: 'Which modules sync',
     items: [
@@ -276,7 +276,7 @@ const TOGGLE_GROUPS: Array<{ title: string; items: Array<{ key: keyof TallyConfi
       { key: 'syncReceipts', label: 'Receipts — payments received' },
       { key: 'syncPurchases', label: 'Purchases — GST supplier bills & payments' },
       { key: 'syncExpenses', label: 'Expenses — including salaries & advances' },
-      { key: 'syncStockJournal', label: 'Stock journal — godown ⇄ branch transfers', hint: 'Only when Tally also mirrors inventory' },
+      { key: 'syncStockJournal', label: 'Stock journal — currently unavailable', hint: 'Inventory remains in the ERP. Stock export needs verification before it can be enabled safely.', disabled: true },
     ],
   },
   {
@@ -298,7 +298,7 @@ const TOGGLE_GROUPS: Array<{ title: string; items: Array<{ key: keyof TallyConfi
  * an open question into a false assurance about the client's statutory books.
  */
 const CHOICE: Array<{ key: keyof TallyConfig; label: string; options: Array<[string, string]>; hint?: string; notYetActive?: boolean }> = [
-  { key: 'inventoryMode', label: 'What Tally holds', options: [['ACCOUNTING_ONLY', 'Accounting vouchers only (recommended)'], ['WITH_STOCK_JOURNALS', 'Also mirror stock']], hint: 'Recommended: keep stock in the ERP only; Tally gets the books.' },
+  { key: 'inventoryMode', label: 'What Tally holds', options: [['ACCOUNTING_ONLY', 'Accounting vouchers only (recommended)'], ['WITH_STOCK_JOURNALS', 'Mirror stock (currently unavailable)']], hint: 'Keep stock in the ERP; stock journal export is currently unavailable.' },
   { key: 'accruedExpenseMode', label: 'Unpaid (accrued) expenses', options: [['ON_PAYMENT', 'Only sync once actually paid'], ['JOURNAL_NOW', 'Journal now, payment later']] },
   { key: 'posSupplyKind', label: 'Counter sales are', options: [['GOODS', 'Retail sale of packaged goods (HSN, ITC)'], ['RESTAURANT', 'Restaurant service (SAC, no ITC)']], hint: 'Ask your CA which applies. Counter sales currently always post as goods.', notYetActive: true },
   { key: 'razorpayReceiptMode', label: 'Razorpay receipts', options: [['CLEARING', 'Gross → Razorpay clearing ledger'], ['DIRECT_BANK', 'Gross → bank directly']], hint: 'Razorpay currently always posts to whichever ledger the Razorpay payment method is mapped to.', notYetActive: true },
@@ -332,6 +332,10 @@ function SettingsTab() {
           Install the Mumbai ERP Sync Agent on the office PC that runs Tally. Pair it once with the token below — it connects
           outward to this server; no ports need opening on your router.
         </p>
+        <p className="text-caption text-muted-foreground">
+          Set the host, port and company in the agent on the Tally PC. These values report its last heartbeat;
+          environment variables in its launcher override its local settings. Use “Find open companies” there to select the exact name.
+        </p>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={cfg.agentPaired ? 'success' : 'neutral'}>{cfg.agentPaired ? 'Agent paired' : 'Not paired'}</Badge>
           {data?.agentOnline && <Badge variant="success">Online now</Badge>}
@@ -356,9 +360,9 @@ function SettingsTab() {
           </div>
         )}
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1"><Label>Tally host</Label><Input defaultValue={cfg.tallyHost} onBlur={(e) => e.target.value !== cfg.tallyHost && set({ tallyHost: e.target.value })} /></div>
-          <div className="space-y-1"><Label>Tally port</Label><Input type="number" defaultValue={cfg.tallyPort} onBlur={(e) => Number(e.target.value) !== cfg.tallyPort && set({ tallyPort: Number(e.target.value) })} /></div>
-          <div className="space-y-1"><Label>Tally company name</Label><Input defaultValue={cfg.tallyCompanyName ?? ''} placeholder="Exactly as in Tally" onBlur={(e) => e.target.value !== (cfg.tallyCompanyName ?? '') && set({ tallyCompanyName: e.target.value || null })} /></div>
+          <div className="space-y-1"><Label>Tally host (reported)</Label><Input value={cfg.tallyHost} readOnly /></div>
+          <div className="space-y-1"><Label>Tally port (reported)</Label><Input value={cfg.tallyPort} readOnly /></div>
+          <div className="space-y-1"><Label>Company (reported)</Label><Input value={cfg.tallyCompanyName ?? ''} readOnly placeholder="Not reported yet" /></div>
         </div>
       </Card>
 
@@ -396,6 +400,7 @@ function SettingsTab() {
                 type="checkbox"
                 className="mt-1 h-4 w-4 shrink-0"
                 checked={Boolean(cfg[it.key])}
+                disabled={it.disabled}
                 onChange={(e) => set({ [it.key]: e.target.checked } as Partial<TallyConfig>)}
               />
             </label>
@@ -420,7 +425,7 @@ function SettingsTab() {
               disabled={c.notYetActive}
               onChange={(e) => set({ [c.key]: e.target.value } as Partial<TallyConfig>)}
             >
-              {c.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              {c.options.map(([v, l]) => <option key={v} value={v} disabled={c.key === 'inventoryMode' && v === 'WITH_STOCK_JOURNALS'}>{l}</option>)}
             </Select>
           </div>
         ))}
@@ -511,6 +516,7 @@ function LedgerTab() {
                     {r.validatedAt
                       ? <Badge variant="success">Confirmed</Badge>
                       : <Badge variant="neutral">Not yet</Badge>}
+                    {r.notes && <p className="mt-1 max-w-xs text-caption text-muted-foreground">{r.notes}</p>}
                   </TD>
                 </TR>
               ))}

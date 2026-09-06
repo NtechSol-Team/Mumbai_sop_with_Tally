@@ -17,7 +17,7 @@ export async function getTallyConfig(): Promise<TallyConfig> {
 }
 
 const CONFIG_KEYS = [
-  'agentLabel', 'tallyCompanyName', 'tallyHost', 'tallyPort',
+  'agentLabel',
   'syncEnabled', 'syncSales', 'syncReceipts', 'syncPurchases', 'syncExpenses', 'syncStockJournal',
   'autoProvisionLedgers',
   'inventoryMode', 'posSupplyKind', 'posVoucherGranularity', 'razorpayReceiptMode', 'discountMode',

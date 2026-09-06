@@ -1,5 +1,9 @@
 # Tally Integration — Engineering Audit
 
+> Historical audit from 5 September 2026. Some “fixed” claims were not fully
+> supported by the code. See the [6 September review and corrections](tally-agent-analysis-and-fix.md)
+> for current findings, behavior, verification and remaining limitations.
+
 **Date:** 2026-09-05 · **Scope:** the whole ERP → TallyPrime sync (outbox, builder,
 worker, API, agent, settings) · **Method:** code review against the running system,
 plus what we have actually exercised against a live TallyPrime 7.1.

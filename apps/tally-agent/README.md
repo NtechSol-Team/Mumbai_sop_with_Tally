@@ -4,9 +4,9 @@ A small tray app that runs on the client's Tally machine. It **connects outward*
 Mumbai ERP, pulls the accounting vouchers the ERP has already built and validated,
 and posts them into **TallyPrime**'s local XML-over-HTTP interface (`localhost:9000`).
 
-**One way only.** The agent never reads business data out of Tally and never listens
+**One way only.** The agent reads only company/master names for validation; it never pulls financial transactions out of Tally and never listens
 on a network port — so nothing needs opening on the office router or firewall. Its
-only requirement is that the PC can make outbound HTTPS calls (every PC can).
+network requirements are outbound access to the ERP API and access to the configured local/LAN Tally HTTP server.
 
 ```
 Mumbai ERP (cloud)  ──HTTPS, agent dials out──▶  this agent  ──HTTP localhost:9000──▶  TallyPrime 7.1
@@ -25,8 +25,12 @@ Mumbai ERP (cloud)  ──HTTPS, agent dials out──▶  this agent  ──HTT
    (with Tally's own error message, e.g. *"Ledger 'Andheri Outlet' does not exist"*).
    Failed vouchers stay FAILED in the ERP for the owner to fix the mapping and Retry.
 
-An edited transaction is sent as *delete-then-recreate* keyed on the ERP reference
-(`REMOTEID`), so a retry never leaves a duplicate in Tally.
+An edited transaction retains the existing *delete-then-recreate* workflow, keyed
+on the stable ERP entity identity (`REMOTEID`). This is not atomic or an
+unconditional duplicate guarantee. Completed results are journalled locally
+before ERP acknowledgement, so an acknowledgement outage does not immediately
+repost them. See the [current review](../../docs/tally-agent-analysis-and-fix.md)
+for remaining crash/retry limits.
 
 ## First-time setup
 
@@ -34,7 +38,7 @@ An edited transaction is sent as *delete-then-recreate* keyed on the ERP referen
 2. Install and open this agent. In its Settings window enter:
    - **Mumbai ERP address** — the API URL
    - **Pairing token** — from step 1
-   - **Tally company name** — exactly as it reads in Tally
+   - **Tally company name** — click **Find open companies**, explicitly select the intended name, then Save
    - Tally host / port — usually `localhost` / `9000`
 3. Click **Test Tally connection**. If it fails: open TallyPrime, load the company,
    and enable the HTTP server (F1 → Settings → Connectivity → *TallyPrime acts as* →
@@ -93,3 +97,49 @@ shifted between releases. Before go-live, run each voucher type against a **thro
 Tally company** and confirm the `ALLLEDGERENTRIES.LIST` sign convention
 (debit = `ISDEEMEDPOSITIVE Yes` + negative `AMOUNT`) and the `REMOTEID`
 delete/re-create behaviour on the client's exact TallyPrime 7.1 build.
+
+## Company discovery and validation (current implementation)
+
+```bat
+node src\run-headless.js --list-companies
+node src\run-headless.js --check
+```
+
+These commands only read Tally and do not need an ERP token. Discovery has no
+company context. A normal sync requires an exact configured name in that list
+and a successful scoped probe. No first-company, active-company, case-folded or
+fuzzy spelling fallback is used. Names keep their original spaces and spelling.
+The settings connection test uses the displayed draft; **Sync now** uses saved
+settings.
+
+`TALLY_COMPANY` overrides the local file, including an explicitly empty value.
+The CLI and settings window identify the effective source. The ERP web page
+shows the agent's reported host/port/company; configure those on the Tally PC.
+Electron and headless have separate default config files; set
+`MUMBAI_ERP_TALLY_CONFIG` explicitly to share one. Run only one agent per dataset.
+
+## Upgrading and verifying
+
+This release uses **agent protocol 2**. Stop old agents, update the ERP API first,
+then update this agent and run `npm ci --omit=dev`. No database migration is
+required. The new agent refuses an old API before it posts vouchers. The new API
+requires `X-Tally-Agent-Protocol: 2` on every agent request and stops older agents
+with an update message before they receive work. Set pairing
+credentials locally; the launcher no longer embeds a token or a company name.
+Rotate any token previously committed to source control.
+
+Both Sync ON and auto-provision ON are required for ledger creation. Ledger
+existence is checked against names read from the selected company. GST identity
+is never silently stripped after a failed create. The optional stock-journal
+export is blocked pending verification of its source/destination XML contract;
+keep **Accounting vouchers only** selected.
+
+Claims for an interrupted batch expire after 30 minutes; completed results are
+retried from `pending-results.json` before any further posting. Do not delete
+that journal to work around a destination mismatch; restore the original
+connection settings and acknowledge it first.
+
+Run `npm test` here for agent regressions, and `npm run test:tally --workspace
+@mumbai-erp/api` from the repository root for server regressions. Live Tally
+acceptance, edits and cancellation still need testing on a throwaway company on
+the installed Tally build.

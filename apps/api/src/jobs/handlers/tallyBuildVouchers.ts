@@ -46,27 +46,27 @@ export async function tallyBuildVouchersHandler(_jobs: Job[]): Promise<void> {
     try {
       const payload = await buildVoucher(row);
       if (!payload) continue; // not eligible yet
-      await prisma.tallySyncQueue.update({
-        where: { id: row.id },
+      const saved = await prisma.tallySyncQueue.updateMany({
+        where: { id: row.id, revision: row.revision, status: TallySyncStatus.PENDING, payloadJson: { equals: Prisma.DbNull } },
         data: { payloadJson: payload as unknown as Prisma.InputJsonValue, errorMessage: null },
       });
-      built += 1;
+      built += saved.count;
     } catch (err) {
       // Deferred is not failed: the row stays PENDING and is retried, but the
       // reason is recorded so it never looks stuck for no apparent cause.
       if (err instanceof TallyDeferError) {
-        await prisma.tallySyncQueue.update({ where: { id: row.id }, data: { errorMessage: err.message } });
-        deferred += 1;
+        const saved = await prisma.tallySyncQueue.updateMany({ where: { id: row.id, revision: row.revision, status: TallySyncStatus.PENDING, payloadJson: { equals: Prisma.DbNull } }, data: { errorMessage: err.message } });
+        deferred += saved.count;
         continue;
       }
       const message = err instanceof TallyBuildError
         ? err.message
         : `Could not build the voucher: ${err instanceof Error ? err.message : String(err)}`;
-      await prisma.tallySyncQueue.update({
-        where: { id: row.id },
+      const saved = await prisma.tallySyncQueue.updateMany({
+        where: { id: row.id, revision: row.revision, status: TallySyncStatus.PENDING, payloadJson: { equals: Prisma.DbNull } },
         data: { status: TallySyncStatus.FAILED, errorMessage: message },
       });
-      failed += 1;
+      failed += saved.count;
     }
   }
 

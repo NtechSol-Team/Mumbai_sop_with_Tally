@@ -8,12 +8,14 @@ REM  1. Fill in the four values below (from Settings -> Tally Sync).
 REM  2. Make sure Node 20+ is installed.
 REM =======================================================================
 
-set "MUMBAI_ERP_URL=https://mumbai-erp-ntechsol-api.onrender.com"
-set "MUMBAI_ERP_TOKEN=mea_8abccb9eb054d911068018101ac44b61c15b3756d508776e"
-set "TALLY_HOST=localhost"
-set "TALLY_PORT=9000"
-set "TALLY_COMPANY=Mumbai Erp"
-set "POLL_SECONDS=20"
+REM Uncomment and fill these, or set them in the environment before launch.
+REM Never commit a pairing token to source control.
+REM set "MUMBAI_ERP_URL=https://api.your-domain.com"
+REM set "MUMBAI_ERP_TOKEN=YOUR_PAIRING_TOKEN"
+REM set "TALLY_COMPANY=EXACT_NAME_FROM_LIST_COMPANIES"
+if not defined TALLY_HOST set "TALLY_HOST=localhost"
+if not defined TALLY_PORT set "TALLY_PORT=9000"
+if not defined POLL_SECONDS set "POLL_SECONDS=20"
 
 cd /d "%~dp0"
 echo Working folder: %cd%
@@ -31,7 +33,7 @@ call node -v
 call npm -v
 echo.
 
-if not exist "node_modules\xmlbuilder2" (
+if not exist "node_modules\saxes" (
   echo Installing dependencies - first run only, this can take a minute...
   call npm install --omit=dev
   if errorlevel 1 (
@@ -45,7 +47,7 @@ echo   ERP:   %MUMBAI_ERP_URL%
 echo   Tally: %TALLY_HOST%:%TALLY_PORT%
 echo Press Ctrl+C to stop.
 echo.
-call node src\run-headless.js
+call node src\run-headless.js %*
 if errorlevel 1 (
   echo.
   echo [ERROR] The agent exited with an error. See the messages above.

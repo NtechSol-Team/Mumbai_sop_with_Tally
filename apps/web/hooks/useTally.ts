@@ -85,6 +85,7 @@ export function useTallySettings() {
   return useQuery({
     queryKey: ['tally', 'settings'],
     queryFn: async () => (await api.get<ApiSuccess<TallySettings>>('/tally/settings')).data.data,
+    refetchInterval: 15_000,
   });
 }
 

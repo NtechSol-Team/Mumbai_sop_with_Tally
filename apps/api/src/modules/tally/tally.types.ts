@@ -42,7 +42,7 @@ export interface TallyVoucherPayload {
   voucherNumber: string;
   reference?: string;
   narration: string;
-  /** Becomes REMOTEID in Tally — a retry with the same key updates, never duplicates. */
+  /** Stable REMOTEID in Tally. Duplicate behavior also depends on Tally import settings. */
   dedupKey: string;
   /** PARTYLEDGERNAME for invoice-style vouchers (Sales / Purchase). */
   partyLedger?: string;

@@ -6,7 +6,7 @@ const AutoLaunch = require('auto-launch');
 const config = require('./config');
 
 // Keep config next to the app's own data, not in the user's home dir.
-config.setStorePath(path.join(app.getPath('userData'), 'config.json'));
+if (!process.env.MUMBAI_ERP_TALLY_CONFIG) config.setStorePath(path.join(app.getPath('userData'), 'config.json'));
 
 const syncLoop = require('./sync-loop');
 const tally = require('./tally-client');
@@ -18,9 +18,11 @@ let latest = syncLoop.getState();
 const iconPath = (name) => path.join(__dirname, '..', 'build', name);
 
 function statusLine() {
-  if (!config.isConfigured()) return 'Not paired — open Settings';
+  try { if (!config.isConfigured()) return 'Not paired — open Settings'; }
+  catch { return 'Invalid configuration — open Settings'; }
   if (!latest.erpOk) return 'Cannot reach Mumbai ERP';
-  if (!latest.tallyOk) return 'ERP OK · Tally not responding';
+  if (!latest.tallyOk) return latest.tallyReachable ? 'ERP OK · Tally company not verified' : 'ERP OK · Tally not responding';
+  if (latest.lastError) return 'Sync needs attention — open Settings';
   if (latest.failed) return `Online · ${latest.failed} voucher(s) failed`;
   return latest.pushed ? `Online · pushed ${latest.pushed}` : 'Online · nothing pending';
 }
@@ -41,7 +43,7 @@ function rebuildTray() {
 function openSettings() {
   if (settingsWin) { settingsWin.focus(); return; }
   settingsWin = new BrowserWindow({
-    width: 460, height: 620, resizable: false, title: 'Mumbai ERP Tally Sync — Settings',
+    width: 560, height: 820, resizable: true, title: 'Mumbai ERP Tally Sync — Settings',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   settingsWin.setMenuBarVisibility(false);
@@ -49,10 +51,17 @@ function openSettings() {
   settingsWin.on('closed', () => { settingsWin = null; });
 }
 
-ipcMain.handle('config:get', () => config.get());
+ipcMain.handle('config:get', () => ({ ...config.get(), agentVersion: app.getVersion(), companySource: config.companySource() }));
 ipcMain.handle('config:save', (_e, patch) => { const c = config.set(patch); syncLoop.start(onState); return c; });
-ipcMain.handle('tally:ping', async () => {
-  const p = await tally.ping();
+function connectionDraft(draft = {}) {
+  const c = { ...config.get() };
+  for (const key of ['tallyHost', 'tallyPort', 'tallyCompany']) if (draft[key] !== undefined) c[key] = draft[key];
+  config.validate(c);
+  return c;
+}
+ipcMain.handle('tally:companies', (_e, draft) => tally.discoverCompanies(connectionDraft(draft)));
+ipcMain.handle('tally:ping', async (_e, draft) => {
+  const p = await tally.ping(connectionDraft(draft));
   return { ok: p.reachable && p.companyOpen && !p.error, ...p };
 });
 ipcMain.handle('sync:now', async () => { await syncLoop.runOnce(); return syncLoop.getState(); });
@@ -79,5 +88,5 @@ app.whenReady().then(async () => {
   tray.on('click', openSettings);
 
   syncLoop.start(onState);
-  if (!config.isConfigured()) openSettings();
+  try { if (!config.isConfigured()) openSettings(); } catch { openSettings(); }
 });

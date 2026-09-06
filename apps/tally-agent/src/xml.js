@@ -1,6 +1,7 @@
 'use strict';
 
 const { create } = require('xmlbuilder2');
+const { requireCompany } = require('./company');
 
 /**
  * Canonical voucher JSON (built by the ERP) → TallyPrime import XML.
@@ -11,7 +12,8 @@ const { create } = require('xmlbuilder2');
  *   • Debit  → ISDEEMEDPOSITIVE Yes, AMOUNT negative
  *   • Credit → ISDEEMEDPOSITIVE No,  AMOUNT positive
  *
- * REMOTEID carries the ERP's dedup key, so a retry updates rather than duplicates.
+ * REMOTEID carries the ERP's stable identity. Tally import settings also affect
+ * duplicate handling; it is not an unconditional exactly-once guarantee.
  * A revision > 0 (an edited source row) is sent as Delete-then-Create.
  */
 
@@ -89,6 +91,7 @@ function defaultVchType(t) {
 
 /** Build the full import envelope for one voucher. `action` is Create | Alter | Delete. */
 function buildEnvelope(payload, company, action) {
+  requireCompany(company);
   const doc = {
     ENVELOPE: {
       HEADER: { TALLYREQUEST: 'Import Data' },
@@ -96,7 +99,7 @@ function buildEnvelope(payload, company, action) {
         IMPORTDATA: {
           REQUESTDESC: {
             REPORTNAME: 'Vouchers',
-            STATICVARIABLES: { SVCURRENTCOMPANY: (company || '').trim() },
+            STATICVARIABLES: { SVCURRENTCOMPANY: company },
           },
           REQUESTDATA: {
             TALLYMESSAGE: {
@@ -117,7 +120,8 @@ function buildEnvelope(payload, company, action) {
  */
 function messagesFor(item, company) {
   const p = item.payload;
-  if (p.action === 'CANCEL') return [{ action: 'Delete', xml: buildEnvelope(p, company, 'Delete') }];
+  validatePayload(item);
+  if (p.action === 'CANCEL') return [{ action: 'Delete', xml: buildEnvelope(p, company, 'Delete'), tolerateNotFound: true }];
   const msgs = [];
   if ((item.revision || p.meta?.revision || 0) > 0) {
     msgs.push({ action: 'Delete', xml: buildEnvelope(p, company, 'Delete'), tolerateNotFound: true });
@@ -126,4 +130,32 @@ function messagesFor(item, company) {
   return msgs;
 }
 
-module.exports = { buildEnvelope, messagesFor };
+function validatePayload(item) {
+  const p = item.payload;
+  if (!p || p.contractVersion !== 1) throw new Error('Unsupported ERP voucher contract. Update the agent before syncing.');
+  if (!Number.isInteger(item.revision) || item.revision < 0 || p.meta?.revision !== item.revision) throw new Error('Voucher revision does not match its payload. Rebuild the queue item.');
+  if (!['CREATE', 'CANCEL'].includes(p.action) || !['SALES', 'PURCHASE', 'RECEIPT', 'PAYMENT', 'JOURNAL', 'STOCK_JOURNAL'].includes(p.voucherType)) throw new Error('Unsupported voucher action or type.');
+  if (!p.dedupKey || (item.dedupKey && item.dedupKey !== p.dedupKey) || !p.voucherNumber || !/^\d{8}$/.test(p.date)) throw new Error('Voucher identity, number or date is invalid.');
+  if (p.action === 'CANCEL') return;
+  // The previous stock serializer dropped the source leg of transfers. Require a
+  // verified stock contract rather than silently posting one-sided movements.
+  if (p.voucherType === 'STOCK_JOURNAL') throw new Error('Stock journal sync is paused: this agent does not yet support a verified source/destination stock XML contract. Keep inventory mode at Accounting only.');
+  if (!Array.isArray(p.lines) || p.lines.length < 2) throw new Error('An accounting voucher needs at least two ledger lines.');
+  let balance = 0;
+  for (const line of p.lines) {
+    if (!line.ledger?.trim() || !['DR', 'CR'].includes(line.drCr) || !Number.isFinite(line.amount) || line.amount < 0) throw new Error('Voucher contains an invalid ledger line or amount.');
+    const cents = Math.round(line.amount * 100);
+    balance += line.drCr === 'DR' ? cents : -cents;
+    if (line.billAllocations) {
+      let allocated = 0;
+      for (const b of line.billAllocations) {
+        if (!b.name || !BILLTYPE[b.kind] || !Number.isFinite(b.amount) || b.amount < 0) throw new Error('Invalid bill allocation in voucher.');
+        allocated += Math.round(b.amount * 100);
+      }
+      if (allocated !== cents) throw new Error('Bill allocations do not equal the ledger amount.');
+    }
+  }
+  if (Math.abs(balance) > 1) throw new Error('Voucher debits and credits do not balance.');
+}
+
+module.exports = { buildEnvelope, messagesFor, validatePayload };

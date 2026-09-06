@@ -1,19 +1,21 @@
 {
   "name": "mumbai-erp-tally-agent",
   "productName": "Mumbai ERP Tally Sync Agent",
-  "version": "1.0.0",
-  "description": "Runs on the client's Tally machine. Connects OUTWARD to Mumbai ERP, pulls validated accounting vouchers, and posts them into TallyPrime's local XML-over-HTTP interface on localhost:9000. One-way, ERP → Tally.",
+  "version": "1.1.0",
+  "description": "Runs on the client's Tally machine. Connects OUTWARD to Mumbai ERP, pulls validated accounting vouchers, and posts them into TallyPrime's local XML-over-HTTP interface on localhost:9000. One-way, ERP \u2192 Tally.",
   "private": true,
   "main": "src/main.js",
   "author": "Mumbai ERP",
   "license": "UNLICENSED",
   "scripts": {
+    "test": "node --test test/*.test.js",
     "start": "electron .",
     "headless": "node src/run-headless.js",
     "dist": "electron-builder --win nsis"
   },
   "dependencies": {
     "auto-launch": "^5.0.6",
+    "saxes": "6.0.0",
     "xmlbuilder2": "^3.1.1"
   },
   "devDependencies": {

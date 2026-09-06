@@ -25,6 +25,11 @@ const agentAuth = asyncHandler(async (req: Request, _res: Response, next: NextFu
   const header = req.headers.authorization;
   const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : null;
   await tallyService.assertAgentToken(token);
+  // Older agents omit revision/ledger identity when acknowledging work. Reject
+  // them before heartbeat or dispatch so a rolling upgrade cannot cause reposts.
+  if (req.headers['x-tally-agent-protocol'] !== '2') {
+    throw AppError.invalidState('Tally Agent update required: install v1.1.0 or later with agent protocol 2 on the Tally PC, then restart the agent.');
+  }
   next();
 });
 agentRouter.use(agentAuth);

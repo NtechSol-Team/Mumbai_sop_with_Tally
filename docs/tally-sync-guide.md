@@ -1,5 +1,7 @@
 # Mumbai ERP → Tally Prime — Sync Setup & Operations Guide
 
+> Updated company selection and protocol-2 behavior: see the [current engineering review](tally-agent-analysis-and-fix.md). Configure the destination on the local agent; the ERP connection fields only report its heartbeat.
+
 **Audience:** the main owner and their accountant / CA.
 **What this covers:** getting the one-way accounting sync from Mumbai ERP into
 TallyPrime 7.1 running, and how to operate it day to day.
@@ -241,7 +243,7 @@ npm start
 ```
 cd apps\tally-agent
 npm install
-npm run dist           →  dist\Mumbai ERP Tally Sync Agent-Setup-1.0.0.exe
+npm run dist           →  dist\Mumbai ERP Tally Sync Agent-Setup-1.1.0.exe
 ```
 
 Must run on Windows or a Windows CI runner. Windows SmartScreen will warn about
@@ -302,7 +304,7 @@ match the client's actual chart of accounts.
 ### Auto-provisioning (fresh / test companies only)
 
 **Tally Sync → Settings → "Let the agent create missing ledgers in Tally
-itself."** OFF by default. Turn it **ON** for a fresh or throwaway company and
+itself."** OFF by default. Turn it **ON** with the master **Sync ON** for a fresh or throwaway company and
 the agent will, on its next cycle, create every mapped ledger that doesn't
 exist yet — every outlet's debtor, every supplier's creditor, and the sales /
 purchase / expense / bank / round-off / discount ledgers — using the exact
@@ -406,11 +408,9 @@ Other routes to the same place:
 | Fixed Assets | `Plant & Equipment` |
 | Current Liabilities | `Outstanding Expenses` |
 
-This check is worth doing rather than trusting the agent's "already existed"
-count: that count comes from Tally silently accepting a create for a master it
-already has, and in rare cases Tally goes quiet for a different reason. Anything
-genuinely missing shows up later as a `ledger does not exist` failure on the
-first voucher that needs it.
+The agent now verifies existing ledger names by reading them from the selected
+company. An empty response or a zero-change create response is not sufficient
+proof that a ledger exists. Creation failures are shown in Ledger Mapping notes.
 
 ### Create the 6 GST ledgers (by hand, on purpose)
 
@@ -499,20 +499,23 @@ Work through these in order, on the Tally PC:
    dialog or report with a prompt is open. Press **Esc** until you're at the
    plain Gateway of Tally menu, and leave it there.
 
-3. **Match the name exactly.** Tally compares `SVCURRENTCOMPANY` character for
-   character — case, spaces and punctuation all count (`Food Company` ≠
-   `food company` ≠ `Food  Company`). Get the exact stored name from **F3 →
-   Alter → (select the company) →** the **Name** field. Copy it into the agent's
-   *Tally company name* (`TALLY_COMPANY` in `start-agent.bat`) — don't retype it.
-   Then restart the agent.
+3. **Select the exact name.** In agent Settings, click **Find open companies**
+   and choose the intended company, then Save. Headless users can run
+   `node src\run-headless.js --list-companies` and set `TALLY_COMPANY` to the exact
+   selected value. If the environment overrides the saved file, edit the
+   launcher/environment and restart. Names are preserved, including case,
+   significant spaces and XML-special characters.
 
-4. **Only one company open** is simplest. If several are loaded, the agent still
-   targets the one it's configured for, but it's easy to misread which is which.
+4. **Multiple companies are supported as available choices.** Only the explicitly
+   selected exact name is used. The agent does not choose the first, active,
+   single, or closest-spelled company automatically. Changing this target does
+   not move historical vouchers between Tally companies.
 
-The agent now checks all of this before it sends anything: it asks Tally for the
-list of **open** companies and confirms the configured one is among them, so the
-dashboard/console tells you *"'Food Company' is not open — open now: 'Mumbai ERP'"*
-instead of letting every voucher fail the same way.
+The agent discovers open companies and validates the selected context before
+provisioning or pulling vouchers. A spelling mismatch lists available names and
+pauses synchronization without consuming dispatch attempts. Failed discovery is
+reported separately from a verified empty company list. Already FAILED vouchers
+still need ERP Retry after correcting their cause.
 
 ---
 
@@ -530,17 +533,24 @@ instead of letting every voucher fail the same way.
 | Supplier payment (against a GST bill) | **Payment** | Dr supplier · Cr bank/cash |
 | Expense / salary / advance | **Payment** (or **Journal** if unpaid) | Dr expense head · Cr bank/cash (or the partner's account if a partner paid) |
 | A branch's own expense or purchase | — | **excluded** — the branch bears that cost |
-| Godown ⇄ branch stock transfer | **Stock Journal** | only if "mirror stock" is turned on |
+| Godown ⇄ branch stock transfer | — | Stock-journal export currently blocked pending source/destination XML verification; inventory stays in ERP |
 | Quick stock intake without a bill | — | **excluded** — no GST detail; use a purchase bill |
 
 ---
 
-## 11. Duplicate protection
+## 11. Retry and duplicate handling
 
-Every voucher carries the ERP's own reference number (`BL-2026-00001`,
-`PB-2026-00001`, …) as its Tally `REMOTEID`. A retry with the same reference
-**updates** the existing Tally voucher rather than creating a second one. An
-edited transaction is sent as *delete-then-recreate* keyed on that reference.
+Every voucher has a stable `REMOTEID` built from the ERP entity type and UUID;
+it is not the human-readable bill number. Completed outcomes are saved to the
+agent's local `pending-results.json` before acknowledgement. If acknowledgement
+fails, the agent retries that result before any further posting. Results include
+the dispatched revision, so an old response cannot mark a newer edit synced.
+
+This is not an exactly-once guarantee: a crash after Tally commits but before the
+agent records the response remains uncertain. Edited transactions still use
+Delete then Create; a recreation failure explicitly reports that the old voucher
+was deleted. Verify the client's Tally import settings and identity behavior in
+a throwaway company. An abandoned dispatch claim expires after 30 minutes.
 
 ---
 

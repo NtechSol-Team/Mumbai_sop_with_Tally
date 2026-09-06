@@ -1,6 +1,7 @@
 'use strict';
 
 const { create } = require('xmlbuilder2');
+const { requireCompany } = require('./company');
 
 /**
  * Ledger-master creation XML — used only when the owner has turned
@@ -33,9 +34,8 @@ function ledgerNode(ledger, { withGst }) {
     if (ledger.address) node['ADDRESS.LIST'] = { ADDRESS: ledger.address };
     if (ledger.phone) node.LEDGERPHONE = ledger.phone;
     if (ledger.state) node.LEDSTATENAME = ledger.state;
-    // GST identity is the part most likely to differ between TallyPrime builds,
-    // so it is separable — see buildLedgerMessages() for the retry-without-GST
-    // fallback that keeps a GST quirk from blocking the ledger entirely.
+    // Preserve GST identity on imports. If these fields are rejected by the
+    // installed Tally build, report that failure for correction in Tally.
     if (withGst && ledger.gstin) {
       node.PARTYGSTIN = ledger.gstin;
       node.GSTREGISTRATIONTYPE = 'Regular';
@@ -56,7 +56,7 @@ function envelope(node, company) {
         IMPORTDATA: {
           REQUESTDESC: {
             REPORTNAME: 'All Masters',
-            STATICVARIABLES: { SVCURRENTCOMPANY: (company || '').trim() },
+            STATICVARIABLES: { SVCURRENTCOMPANY: requireCompany(company) },
           },
           REQUESTDATA: {
             TALLYMESSAGE: { '@xmlns:UDF': 'TallyUDF', LEDGER: node },
@@ -74,15 +74,11 @@ function buildLedgerEnvelope(ledger, company) {
 
 /**
  * The attempts to make for one ledger, in order. A party ledger with a GSTIN is
- * tried with its GST details first; if Tally rejects that (the GST master fields
- * vary across releases), it is retried without them — a ledger that exists with
- * its GST details left to fill in by hand beats no ledger at all.
+ * created with its GST details. Do not silently drop the tax identity on failure;
+ * report the rejection so the operator can create/correct it in Tally.
  */
 function buildLedgerMessages(ledger, company) {
   const attempts = [{ label: 'with GST details', xml: envelope(ledgerNode(ledger, { withGst: true }), company) }];
-  if (ledger.isParty && ledger.gstin) {
-    attempts.push({ label: 'without GST details', xml: envelope(ledgerNode(ledger, { withGst: false }), company) });
-  }
   return attempts;
 }
 

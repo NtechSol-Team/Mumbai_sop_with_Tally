@@ -9,7 +9,8 @@
     h1 { font-size: 15px; margin: 0 0 4px; }
     p.sub { color: #6b7280; margin: 0 0 16px; }
     label { display: block; font-weight: 600; margin: 12px 0 4px; }
-    input { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; }
+    input, select { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; }
+    button:disabled { opacity: 0.6; cursor: wait; }
     .row { display: flex; gap: 10px; }
     .row > div { flex: 1; }
     button { margin-top: 16px; padding: 8px 14px; border: 0; border-radius: 6px; background: #1e6f53; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
@@ -20,29 +21,35 @@
 </head>
 <body>
   <h1>Mumbai ERP Tally Sync Agent</h1>
+  <p id="version" class="hint"></p>
   <p class="sub">Runs beside Tally. Connects outward to Mumbai ERP and posts vouchers into Tally on this machine.</p>
 
-  <label>Mumbai ERP address <span class="hint">— the API URL your team gave you</span></label>
+  <label for="erpUrl">Mumbai ERP address <span class="hint">— the API URL your team gave you</span></label>
   <input id="erpUrl" placeholder="https://api.your-mumbai-erp-domain.com" />
 
-  <label>Pairing token <span class="hint">— from Settings → Tally Sync → Generate token</span></label>
-  <input id="agentToken" placeholder="mea_…" />
+  <label for="agentToken">Pairing token <span class="hint">— from Settings → Tally Sync → Generate token</span></label>
+  <input id="agentToken" type="password" placeholder="mea_…" />
 
   <div class="row">
     <div>
-      <label>Tally host</label>
+      <label for="tallyHost">Tally host</label>
       <input id="tallyHost" value="localhost" />
     </div>
     <div>
-      <label>Tally port</label>
+      <label for="tallyPort">Tally port</label>
       <input id="tallyPort" value="9000" />
     </div>
   </div>
 
-  <label>Tally company name <span class="hint">— exactly as it appears in Tally</span></label>
+  <label for="tallyCompany">Tally company name <span class="hint">— exact spelling, case and spaces</span></label>
   <input id="tallyCompany" placeholder="e.g. Mumbai Foods Private Limited" />
+  <p id="companySource" class="hint"></p>
+  <button id="discover" class="ghost">Find open companies</button>
+  <label for="companies">Choose an open company</label>
+  <select id="companies" disabled><option value="">Find companies first</option></select>
+  <p class="hint">Selecting a name fills the field above. Save to use it. The agent never guesses or chooses the first company automatically.</p>
 
-  <label>Check every (seconds)</label>
+  <label for="pollSeconds">Check every (seconds)</label>
   <input id="pollSeconds" value="20" />
 
   <div>
@@ -51,7 +58,7 @@
     <button id="now" class="ghost">Sync now</button>
   </div>
 
-  <div id="status">Loading…</div>
+  <div id="status" role="status" aria-live="polite">Loading…</div>
 
   <script src="./settings.js"></script>
 </body>

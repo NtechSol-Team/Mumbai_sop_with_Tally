@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
-import { Prisma, TallySyncStatus } from '@prisma/client';
+import { Prisma, TallyEntityType, TallySyncStatus } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { logger } from '../../config/logger';
 import { AppError } from '../../shared/utils/AppError';
@@ -123,16 +123,26 @@ export async function assertAgentToken(token: string | null): Promise<void> {
   }
 }
 
-export async function agentHeartbeat(input: { label?: string; tallyCompanyName?: string }) {
-  await prisma.tallyConfig.update({
-    where: { id: 'singleton' },
-    data: {
-      agentLastSeenAt: new Date(),
-      ...(input.label ? { agentLabel: input.label } : {}),
-      ...(input.tallyCompanyName ? { tallyCompanyName: input.tallyCompanyName } : {}),
-    },
+export async function agentHeartbeat(input: { label?: string; tallyCompanyName?: string; tallyHost?: string; tallyPort?: number }) {
+  const cfg = await prisma.$transaction(async (tx) => {
+    const previous = await tx.tallyConfig.findUniqueOrThrow({ where: { id: 'singleton' } });
+    const changed = (input.tallyCompanyName !== undefined && input.tallyCompanyName !== (previous.tallyCompanyName ?? ''))
+      || (input.tallyHost !== undefined && input.tallyHost !== previous.tallyHost)
+      || (input.tallyPort !== undefined && input.tallyPort !== previous.tallyPort);
+    // Ledger confirmations apply to a specific destination, never all companies.
+    if (changed) await tx.tallyLedgerMap.updateMany({ data: { validatedAt: null } });
+    return tx.tallyConfig.update({
+      where: { id: 'singleton' },
+      data: {
+        agentLastSeenAt: new Date(),
+        ...(input.label ? { agentLabel: input.label } : {}),
+        ...(input.tallyCompanyName !== undefined ? { tallyCompanyName: input.tallyCompanyName || null } : {}),
+        ...(input.tallyHost !== undefined ? { tallyHost: input.tallyHost } : {}),
+        ...(input.tallyPort !== undefined ? { tallyPort: input.tallyPort } : {}),
+      },
+    });
   });
-  return { ok: true };
+  return { ok: true, protocolVersion: 2, syncEnabled: cfg.syncEnabled };
 }
 
 /**
@@ -141,15 +151,30 @@ export async function agentHeartbeat(input: { label?: string; tallyCompanyName?:
  * is re-pulled every cycle forever, consuming a slot and telling nobody.
  */
 const MAX_DISPATCH_ATTEMPTS = 8;
+// A 25-item batch can take up to 25 minutes at two 30-second requests per
+// revision. Claims expire after 30 minutes if an agent crashes before reporting.
+const DISPATCH_LEASE_MS = 30 * 60_000;
 
 /** Hand the agent a batch of built, un-pushed vouchers. */
 export async function agentPending(limit: number) {
+  const cfg = await getTallyConfig();
+  if (!cfg.syncEnabled) return [];
+  const eligibleTypes = [
+    ...(cfg.syncSales ? ['SALES_BILL', 'POS_SALE'] : []),
+    ...(cfg.syncReceipts ? ['PAYMENT_IN'] : []),
+    ...(cfg.syncPurchases ? ['PURCHASE_BILL', 'SUPPLIER_PAYMENT'] : []),
+    ...(cfg.syncExpenses ? ['EXPENSE'] : []),
+    ...(cfg.syncStockJournal && cfg.inventoryMode !== 'ACCOUNTING_ONLY' ? ['STOCK_TRANSFER'] : []),
+  ] as TallyEntityType[];
+  const leaseAvailable: Prisma.TallySyncQueueWhereInput = {
+    OR: [{ lastAttemptAt: null }, { lastAttemptAt: { lt: new Date(Date.now() - DISPATCH_LEASE_MS) } }],
+  };
   await prisma.tallyConfig.update({ where: { id: 'singleton' }, data: { agentLastSeenAt: new Date() } }).catch(() => undefined);
 
   // Anything past the ceiling is given up on, with a reason the owner can read
   // and a Retry button that resets the counter.
   const exhausted = await prisma.tallySyncQueue.updateMany({
-    where: { status: TallySyncStatus.PENDING, payloadJson: { not: Prisma.DbNull }, attempts: { gte: MAX_DISPATCH_ATTEMPTS } },
+    where: { status: TallySyncStatus.PENDING, payloadJson: { not: Prisma.DbNull }, attempts: { gte: MAX_DISPATCH_ATTEMPTS }, ...leaseAvailable },
     data: {
       status: TallySyncStatus.FAILED,
       errorMessage: `Gave up after ${MAX_DISPATCH_ATTEMPTS} attempts without Tally confirming the voucher. Check the agent and Tally, then Retry.`,
@@ -162,17 +187,24 @@ export async function agentPending(limit: number) {
       status: TallySyncStatus.PENDING,
       payloadJson: { not: Prisma.DbNull },
       attempts: { lt: MAX_DISPATCH_ATTEMPTS },
+      entityType: { in: eligibleTypes },
+      ...(cfg.syncFromDate ? { entityDate: { gte: cfg.syncFromDate } } : {}),
+      ...leaseAvailable,
     },
     orderBy: { createdAt: 'asc' },
-    take: limit,
+    take: Math.min(limit, 25),
   });
-  if (rows.length) {
-    await prisma.tallySyncQueue.updateMany({
-      where: { id: { in: rows.map((r) => r.id) } },
+  const claimed = [];
+  for (const row of rows) {
+    // Compare-and-swap: a concurrent pull or source edit cannot claim this
+    // snapshot twice or dispatch its now-stale payload.
+    const result = await prisma.tallySyncQueue.updateMany({
+      where: { id: row.id, revision: row.revision, status: TallySyncStatus.PENDING, lastAttemptAt: row.lastAttemptAt, attempts: row.attempts },
       data: { attempts: { increment: 1 }, lastAttemptAt: new Date() },
     });
+    if (result.count) claimed.push(row);
   }
-  return rows.map((r) => ({ id: r.id, dedupKey: r.dedupKey, revision: r.revision, payload: r.payloadJson }));
+  return claimed.map((r) => ({ id: r.id, dedupKey: r.dedupKey, revision: r.revision, payload: r.payloadJson }));
 }
 
 /**
@@ -181,8 +213,8 @@ export async function agentPending(limit: number) {
  * schema comment on that flag for why).
  */
 export async function agentLedgersPending() {
-  const cfg = await prisma.tallyConfig.findUnique({ where: { id: 'singleton' }, select: { autoProvisionLedgers: true } });
-  if (!cfg?.autoProvisionLedgers) return [];
+  const cfg = await prisma.tallyConfig.findUnique({ where: { id: 'singleton' }, select: { autoProvisionLedgers: true, syncEnabled: true } });
+  if (!cfg?.syncEnabled || !cfg.autoProvisionLedgers) return [];
 
   const rows = await prisma.tallyLedgerMap.findMany({
     where: { validatedAt: null, slot: { not: 'GST' } },
@@ -225,11 +257,11 @@ export async function agentLedgersPending() {
   });
 }
 
-export async function agentReportLedgerResults(results: Array<{ id: string; status: 'CREATED' | 'EXISTS' | 'FAILED'; error?: string }>) {
+export async function agentReportLedgerResults(results: Array<{ id: string; ledgerName: string; parentGroup: string; status: 'CREATED' | 'EXISTS' | 'FAILED'; error?: string }>) {
   const ok = results.filter((r) => r.status !== 'FAILED');
   if (ok.length) {
     await prisma.tallyLedgerMap.updateMany({
-      where: { id: { in: ok.map((r) => r.id) } },
+      where: { OR: ok.map((r) => ({ id: r.id, tallyLedgerName: r.ledgerName, OR: [{ tallyParentGroup: r.parentGroup }, { tallyParentGroup: null }] })) },
       data: { validatedAt: new Date(), notes: null },
     });
   }
@@ -237,7 +269,7 @@ export async function agentReportLedgerResults(results: Array<{ id: string; stat
   // needs to read it on the Ledger Mapping screen to know what to fix.
   for (const r of results.filter((x) => x.status === 'FAILED')) {
     await prisma.tallyLedgerMap
-      .update({ where: { id: r.id }, data: { notes: `Tally rejected this ledger: ${r.error ?? 'no reason given'}`.slice(0, 300) } })
+      .updateMany({ where: { id: r.id, tallyLedgerName: r.ledgerName }, data: { notes: `Tally rejected this ledger: ${r.error ?? 'no reason given'}`.slice(0, 300) } })
       .catch((e) => logger.warn({ e, ledgerMapId: r.id }, 'tally: could not store ledger failure note'));
     logger.warn({ ledgerMapId: r.id, error: r.error }, 'tally: ledger provisioning failed');
   }
@@ -245,14 +277,15 @@ export async function agentReportLedgerResults(results: Array<{ id: string; stat
 }
 
 export async function agentReportResults(
-  results: Array<{ id: string; status: 'SYNCED' | 'FAILED'; tallyVoucherId?: string; tallyResponse?: string; error?: string }>,
+  results: Array<{ id: string; revision: number; status: 'SYNCED' | 'FAILED'; tallyVoucherId?: string; tallyResponse?: string; error?: string }>,
 ) {
   let synced = 0;
   let failed = 0;
+  let ignored = 0;
   for (const r of results) {
     if (r.status === 'SYNCED') {
-      await prisma.tallySyncQueue.update({
-        where: { id: r.id },
+      const updated = await prisma.tallySyncQueue.updateMany({
+        where: { id: r.id, revision: r.revision, status: TallySyncStatus.PENDING },
         data: {
           status: TallySyncStatus.SYNCED,
           tallyVoucherId: r.tallyVoucherId ?? null,
@@ -260,21 +293,23 @@ export async function agentReportResults(
           errorMessage: null,
           syncedAt: new Date(),
         },
-      }).catch((e) => logger.warn({ e, id: r.id }, 'tally: agent result (synced) — row gone?'));
-      synced += 1;
+      });
+      synced += updated.count;
+      ignored += updated.count ? 0 : 1;
     } else {
-      await prisma.tallySyncQueue.update({
-        where: { id: r.id },
+      const updated = await prisma.tallySyncQueue.updateMany({
+        where: { id: r.id, revision: r.revision, status: TallySyncStatus.PENDING },
         data: {
           status: TallySyncStatus.FAILED,
           errorMessage: r.error?.slice(0, 2000) ?? 'Tally rejected the voucher',
           tallyResponse: r.tallyResponse?.slice(0, 8000) ?? null,
         },
-      }).catch((e) => logger.warn({ e, id: r.id }, 'tally: agent result (failed) — row gone?'));
-      failed += 1;
+      });
+      failed += updated.count;
+      ignored += updated.count ? 0 : 1;
     }
   }
-  return { synced, failed };
+  return { synced, failed, ignored };
 }
 
 export const tallyService = {

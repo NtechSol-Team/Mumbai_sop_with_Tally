@@ -15,9 +15,6 @@ const ENUMS = {
 export const updateTallyConfigSchema = z
   .object({
     agentLabel: z.string().trim().max(80).nullable(),
-    tallyCompanyName: z.string().trim().max(120).nullable(),
-    tallyHost: z.string().trim().max(120),
-    tallyPort: z.coerce.number().int().min(1).max(65535),
     syncEnabled: z.boolean(),
     syncSales: z.boolean(),
     syncReceipts: z.boolean(),
@@ -65,13 +62,14 @@ export const queueQuerySchema = paginationQuerySchema.extend({
 });
 
 // ── Agent-facing ──
-export const agentPullSchema = z.object({ limit: z.coerce.number().int().min(1).max(100).default(25) });
+export const agentPullSchema = z.object({ limit: z.coerce.number().int().min(1).max(25).default(25) });
 
 export const agentResultSchema = z.object({
   results: z
     .array(
       z.object({
         id: z.string().uuid(),
+        revision: z.number().int().nonnegative(),
         status: z.enum(['SYNCED', 'FAILED']),
         tallyVoucherId: z.string().max(200).optional(),
         tallyResponse: z.string().max(8000).optional(),
@@ -84,7 +82,9 @@ export const agentResultSchema = z.object({
 
 export const agentHeartbeatSchema = z.object({
   label: z.string().trim().max(80).optional(),
-  tallyCompanyName: z.string().trim().max(120).optional(),
+  tallyCompanyName: z.string().max(120).optional(),
+  tallyHost: z.string().max(120).optional(),
+  tallyPort: z.number().int().min(1).max(65535).optional(),
 });
 
 export const agentLedgerResultSchema = z.object({
@@ -92,6 +92,8 @@ export const agentLedgerResultSchema = z.object({
     .array(
       z.object({
         id: z.string().uuid(),
+        ledgerName: z.string().min(1).max(200),
+        parentGroup: z.string().max(120),
         status: z.enum(['CREATED', 'EXISTS', 'FAILED']),
         error: z.string().max(2000).optional(),
       }),

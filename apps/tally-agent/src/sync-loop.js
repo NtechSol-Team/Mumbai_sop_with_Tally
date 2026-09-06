@@ -3,160 +3,165 @@
 const config = require('./config');
 const erp = require('./erp-client');
 const tally = require('./tally-client');
+const journal = require('./result-store');
 const { messagesFor } = require('./xml');
 const { buildLedgerMessages, isAlreadyExists } = require('./ledger-xml');
 
-/**
- * The loop:
- *   1. heartbeat to the ERP (so the owner's dashboard shows the agent online)
- *   2. if Tally is reachable, pull a batch of built vouchers
- *   3. post each into Tally, collect SYNCED / FAILED with Tally's own message
- *   4. report the outcomes back to the ERP
- *
- * Nothing is lost: if Tally is closed we simply don't pull, and the vouchers
- * wait in the ERP queue until it's back. A voucher that fails stays FAILED in
- * the ERP with the reason, for the owner to fix the mapping and hit Retry.
- */
-
 let timer = null;
 let running = false;
+let generation = 0;
+let onChange = () => {};
 const state = {
-  erpOk: false, tallyOk: false, tallyReachable: false, lastRun: null, lastError: null, pushed: 0, failed: 0,
-  // Ledger auto-provisioning, reported every cycle (not just when something happened) —
-  // so "toggle is off" / "nothing left to do" / "created 5" are all visible, not silent.
+  erpOk: false, tallyOk: false, tallyReachable: false, company: null, openCompanies: [],
+  lastRun: null, lastError: null, pushed: 0, failed: 0,
   ledgerCandidates: 0, ledgerCreated: 0, ledgerExists: 0, ledgerFailed: 0, ledgerFailures: [], provisioned: 0,
 };
-let onChange = () => {};
 
-/**
- * Only does anything when the owner has turned "auto-provision ledgers" on —
- * erp.ledgersPending() returns an empty list otherwise, which is not an error,
- * just nothing to do. Creates whatever the ERP hands back (party ledgers,
- * sales/purchase/expense/bank — never the GST duty ledgers) directly in Tally,
- * and reports each outcome. "Already exists" counts as success, not a failure.
- */
-async function provisionOne(ledger, company) {
-  let lastError = null;
+async function provisionOne(ledger, company, c, existing) {
+  const identity = { id: ledger.id, ledgerName: ledger.name, parentGroup: ledger.parentGroup };
+  if (existing.has(ledger.name)) return { ...identity, status: 'EXISTS' };
+  let lastError;
   for (const attempt of buildLedgerMessages(ledger, company)) {
-    const result = await tally.send(attempt.xml);
-    if (result.ok) return { id: ledger.id, status: 'CREATED' };
-    // Provisioning is "ensure this ledger exists", so both of Tally's ways of
-    // saying "it already does" are success: an explicit duplicate message, and
-    // the silent no-op it returns when a Create targets an existing master.
-    if (result.isNoOp || isAlreadyExists(result.error)) return { id: ledger.id, status: 'EXISTS' };
+    const result = await tally.send(attempt.xml, c, 'Create');
+    if (result.contextError) throw Object.assign(new Error(result.error), { source: 'TALLY' });
+    if (result.ok) {
+      existing.add(ledger.name);
+      return { ...identity, status: 'CREATED' };
+    }
+    if (result.isNoOp || isAlreadyExists(result.error)) {
+      // A silent import, a duplicate GROUP name or an unrelated error does not
+      // prove this ledger exists. Read its actual name from this company.
+      const names = await tally.listLedgerNames(company, c);
+      for (const name of names) existing.add(name);
+      if (existing.has(ledger.name)) return { ...identity, status: 'EXISTS' };
+    }
     lastError = result.error;
   }
-  return { id: ledger.id, status: 'FAILED', error: lastError, ledgerName: ledger.name };
+  return { ...identity, status: 'FAILED', error: (lastError || 'Tally did not confirm ledger creation.').slice(0, 2000) };
 }
 
-async function provisionLedgers(company) {
-  const ledgers = await erp.ledgersPending();
-  if (!ledgers.length) return { candidates: 0, created: 0, exists: 0, failed: 0, failures: [] };
-
+async function provisionLedgers(company, c) {
+  const ledgers = await erp.ledgersPending(c);
+  state.ledgerCandidates = ledgers.length;
+  if (!ledgers.length) return;
+  const existing = new Set(await tally.listLedgerNames(company, c));
   const results = [];
-  for (const l of ledgers) results.push(await provisionOne(l, company));
-
-  await erp.reportLedgerResults(results);
-  const failures = results.filter((r) => r.status === 'FAILED');
-  return {
-    candidates: ledgers.length,
-    created: results.filter((r) => r.status === 'CREATED').length,
-    exists: results.filter((r) => r.status === 'EXISTS').length,
-    failed: failures.length,
-    // Carried up so the console can show WHY, not just how many.
-    failures: failures.slice(0, 3).map((f) => `${f.ledgerName}: ${f.error}`),
-  };
-}
-
-/**
- * Tally's "could not set 'SVCurrentCompany' to 'X'" means the voucher named a
- * company Tally can't switch to — either not open, or not an exact-name match
- * (SVCURRENTCOMPANY is case- and whitespace-sensitive). The bare message leaves
- * the operator guessing what to type, so append Tally's own spelling of what's
- * actually open.
- */
-async function explainError(error, company) {
-  if (!error || !/SVCurrentCompany|current company/i.test(error)) return error;
-  const open = await tally.listOpenCompanies();
-  if (open === null) return `${error} — the agent is set to "${company}". Open that company in Tally (F3 → Select Company) with the name spelled exactly.`;
-  if (open.length === 0) return `${error} — no company is open in Tally. Open "${company}" (F3 → Select Company).`;
-  return `${error} — the agent is set to "${company}"; Tally has open: ${open.map((n) => `"${n}"`).join(', ')}. Set the agent's Tally company name to exactly one of those (it is case- and space-sensitive).`;
-}
-
-async function processItem(item, company) {
-  const msgs = messagesFor(item, company);
-  let lastResult = null;
-  for (const msg of msgs) {
-    const result = await tally.send(msg.xml);
-    if (!result.ok) {
-      // Re-posting an edited voucher deletes the old one first. Tally reporting
-      // "nothing to delete" — either in words or as a silent no-op — is the
-      // expected case when the original never made it in, so carry on to Create.
-      if (msg.action === 'Delete' && msg.tolerateNotFound
-        && (result.isNoOp || /not exist|no vouchers|could not find/i.test(result.error))) {
-        continue;
-      }
-      return { id: item.id, status: 'FAILED', error: await explainError(result.error, company), tallyResponse: result.raw?.slice(0, 7500) };
+  for (const ledger of ledgers) {
+    results.push(await provisionOne(ledger, company, c, existing));
+    // Match the API's 200-result limit, including large initial mappings.
+    if (results.length === 200) {
+      await erp.reportLedgerResults(results, c);
+      recordLedgerCounts(results);
+      results.length = 0;
     }
-    lastResult = result;
   }
-  return {
-    id: item.id,
-    status: 'SYNCED',
-    tallyVoucherId: lastResult?.tallyVoucherId || undefined,
-    tallyResponse: lastResult?.raw?.slice(0, 7500),
-  };
+  if (results.length) {
+    await erp.reportLedgerResults(results, c);
+    recordLedgerCounts(results);
+  }
+}
+
+function recordLedgerCounts(results) {
+  state.ledgerCreated += results.filter((r) => r.status === 'CREATED').length;
+  state.ledgerExists += results.filter((r) => r.status === 'EXISTS').length;
+  state.ledgerFailed += results.filter((r) => r.status === 'FAILED').length;
+  state.ledgerFailures = [...state.ledgerFailures, ...results.filter((r) => r.status === 'FAILED').map((r) => `${r.ledgerName}: ${r.error}`)].slice(0, 3);
+  state.provisioned = state.ledgerCreated + state.ledgerExists;
+}
+
+async function explainError(error, company, c) {
+  if (!tally.isCompanyContextError(error)) return error;
+  const discovery = await tally.discoverCompanies(c);
+  if (discovery.error) return `${error} — selected company ${JSON.stringify(company)}. Could not refresh the company list: ${discovery.error}`;
+  return `${error} — selected company ${JSON.stringify(company)}. Open companies: ${discovery.openCompanies.map((n) => JSON.stringify(n)).join(', ') || 'none'}. Open the intended company or select its exact name in the agent. Sync is paused.`;
+}
+
+async function processItem(item, company, c) {
+  const messages = messagesFor(item, company);
+  let lastResult = null;
+  let deleted = false;
+  for (const message of messages) {
+    const result = await tally.send(message.xml, c, message.action);
+    lastResult = result;
+    if (!result.ok) {
+      // Only a structurally valid zero-count response is tolerated. A broad
+      // "not exist" regex also matched missing ledgers and other real failures.
+      if (message.action === 'Delete' && message.tolerateNotFound && result.isNoOp) continue;
+      const detail = await explainError(result.error, company, c);
+      return {
+        id: item.id, revision: item.revision, status: 'FAILED',
+        error: `${detail}${deleted ? ' The previous voucher was deleted; recreate failed. Correct the cause and Retry to restore it.' : ''}`.slice(0, 2000),
+        tallyResponse: result.raw?.slice(0, 7500), stopBatch: result.contextError === true,
+      };
+    }
+    if (message.action === 'Delete') deleted = true;
+  }
+  return { id: item.id, revision: item.revision, status: 'SYNCED', tallyVoucherId: lastResult?.tallyVoucherId || undefined, tallyResponse: lastResult?.raw?.slice(0, 7500) };
 }
 
 async function runOnce() {
-  if (running || !config.isConfigured()) return;
+  if (running) return;
   running = true;
-  state.lastRun = new Date().toISOString();
-  state.lastError = null;
+  Object.assign(state, {
+    lastRun: new Date().toISOString(), lastError: null, pushed: 0, failed: 0,
+    erpOk: false, tallyOk: false, tallyReachable: false, company: null, openCompanies: [],
+    ledgerCandidates: 0, ledgerCreated: 0, ledgerExists: 0, ledgerFailed: 0, ledgerFailures: [], provisioned: 0,
+  });
+  let stage = 'CONFIG';
   try {
-    await erp.heartbeat();
+    const c = config.get();
+    if (!c.erpUrl || !c.agentToken) { state.lastError = 'Agent is not paired. Configure the ERP address and token.'; return; }
+    stage = 'ERP';
+    const heartbeat = await erp.heartbeat(c);
     state.erpOk = true;
+    if (heartbeat.protocolVersion !== 2) throw new Error('Update the ERP API before running this agent; revision-safe acknowledgements require agent protocol 2.');
+    // Retry acknowledgements before pulling or writing anything else, even when
+    // sync is now OFF or Tally has been closed since the previous successful post.
+    const unreported = journal.load(c);
+    if (unreported.length) { await erp.reportResults(unreported, c); journal.clear(); }
 
-    // Reachable is not enough — posting into the wrong company is worse than not
-    // posting at all, so both have to be true before anything is sent.
-    const probe = await tally.ping();
+    stage = 'TALLY';
+    const probe = await tally.ping(c);
     state.tallyReachable = probe.reachable;
-    state.tallyOk = probe.reachable && probe.companyOpen && !probe.error;
-    if (!probe.reachable) {
-      state.lastError = probe.error || `Tally is not responding on ${config.get().tallyHost}:${config.get().tallyPort}`;
-      return;
-    }
-    // Stop before pushing if the company isn't open, or is open under a name that
-    // doesn't exactly match the config — every voucher would fail identically and
-    // burn its retry budget. probe.error carries the operator-facing explanation.
-    if (!probe.companyOpen || probe.error) { state.lastError = probe.error; return; }
+    state.tallyOk = probe.companyOpen && !probe.error;
+    state.openCompanies = probe.openCompanies || [];
+    state.company = probe.company;
+    if (!state.tallyOk) { state.lastError = probe.error; return; }
+    if (!heartbeat.syncEnabled) { state.lastError = 'Sync is OFF in the ERP. Vouchers and ledger provisioning are paused.'; return; }
+    const company = probe.company;
+    await provisionLedgers(company, c);
 
-    const company = config.get().tallyCompany;
-
-    const prov = await provisionLedgers(company);
-    state.ledgerCandidates = prov.candidates;
-    state.ledgerCreated = prov.created;
-    state.ledgerExists = prov.exists;
-    state.ledgerFailed = prov.failed;
-    state.ledgerFailures = prov.failures;
-    state.provisioned = prov.created + prov.exists;
-
-    const batch = await erp.pullPending(25);
-    if (!batch.length) { state.pushed = 0; state.failed = 0; return; }
-
+    stage = 'ERP';
+    const batch = await erp.pullPending(25, c);
     const results = [];
     for (const item of batch) {
-      try {
-        results.push(await processItem(item, company));
-      } catch (err) {
-        results.push({ id: item.id, status: 'FAILED', error: err.message || String(err) });
+      stage = 'TALLY';
+      let result;
+      try { result = await processItem(item, company, c); }
+      catch (err) {
+        result = { id: item.id, revision: item.revision, status: 'FAILED', error: (err.message || String(err)).slice(0, 2000), stopBatch: err.source === 'TALLY' };
+      }
+      const { stopBatch, ...reported } = result;
+      results.push(reported);
+      journal.save(c, results);
+      if (stopBatch) {
+        state.tallyOk = false;
+        state.lastError = result.error;
+        break; // untouched items stay PENDING; do not fail the entire batch
       }
     }
-    await erp.reportResults(results);
-    state.pushed = results.filter((r) => r.status === 'SYNCED').length;
-    state.failed = results.filter((r) => r.status === 'FAILED').length;
+    if (results.length) {
+      stage = 'ERP';
+      await erp.reportResults(results, c);
+      journal.clear();
+      state.pushed = results.filter((r) => r.status === 'SYNCED').length;
+      state.failed = results.filter((r) => r.status === 'FAILED').length;
+      if (state.failed && !state.lastError) state.lastError = results.find((r) => r.status === 'FAILED').error;
+    }
   } catch (err) {
-    state.erpOk = err.status === undefined ? false : true;
+    const source = err.source || stage;
+    if (source === 'ERP') state.erpOk = false;
+    if (source === 'TALLY') state.tallyOk = false;
     state.lastError = err.message || String(err);
   } finally {
     running = false;
@@ -165,18 +170,23 @@ async function runOnce() {
 }
 
 function start(changeCb) {
-  onChange = changeCb || (() => {});
   stop();
+  onChange = changeCb || (() => {});
+  const current = generation;
   const tick = async () => {
     await runOnce();
-    timer = setTimeout(tick, config.get().pollSeconds * 1000);
+    if (current !== generation) return;
+    let seconds = 20;
+    try { seconds = config.get().pollSeconds; } catch { /* runOnce already reports invalid config */ }
+    timer = setTimeout(tick, seconds * 1000);
   };
-  tick();
+  void tick();
 }
 
 function stop() {
+  generation += 1; // an in-flight tick cannot resurrect a stopped loop
   if (timer) clearTimeout(timer);
   timer = null;
 }
 
-module.exports = { start, stop, runOnce, getState: () => ({ ...state }) };
+module.exports = { start, stop, runOnce, getState: () => ({ ...state }), provisionOne, processItem };
