@@ -120,6 +120,24 @@ Electron and headless have separate default config files; set
 
 ## Upgrading and verifying
 
+### v1.1.2: ERP timeout reporting
+
+The operator confirmed that v1.1.1 created a ledger (`CREATED=1`, `ERRORS=0`)
+and verified its existence in the intended company. A separate preview failure
+revealed an ERP timeout-reporting bug: `AbortSignal.timeout` produces a
+DOMException with a read-only `message`. The client now wraps errors with their
+original cause instead of mutating them, and retains HTTP status information.
+Timeouts report `ERP did not respond within 30s.`. The request deadline and
+acknowledgement behavior are unchanged. All 78 agent regression tests pass.
+
+To update from this directory, stop the running agent, pull `main`, run
+`npm ci --omit=dev`, and check the package version. Use
+`node src\run-headless.js --check` to validate the saved company, then
+`node src\run-headless.js` to start normal syncing. The saved configuration is
+outside this source directory; it does not need to be recreated for this update.
+With ERP Sync enabled, normal syncing can create ledgers and post eligible
+vouchers. Run only one agent instance. Ctrl+C stops the console agent.
+
 ### v1.1.1: ledger import compatibility and diagnostics
 
 Ledger creation now follows the native `Import Data` example in

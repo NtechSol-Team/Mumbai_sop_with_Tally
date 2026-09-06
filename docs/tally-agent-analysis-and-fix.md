@@ -5,6 +5,16 @@ The findings below were established before implementation changes.
 
 ## Live follow-up: v1.1.1 ledger import correction
 
+**Subsequent live result and v1.1.2:** The operator reported a successful
+`Sales - Non-GST` creation in `Food Compnay`: HTTP 200, CREATED=1, ERRORS=0,
+and exact-name readback (`existsAfter: true`). This confirms acceptance of the
+corrected ledger request for that mapping on the installed Tally build; it does
+not establish success for all remaining ledgers or vouchers. A separate preview
+error was reproduced as assignment to the read-only `message` of a timeout
+DOMException in `erp-client.js`. v1.1.2 wraps the exception, retains its cause
+and HTTP status, and reports the actual ERP timeout. All 78 agent tests passed,
+including fetch/body timeouts, immutable failures and retained HTTP errors.
+
 The operator subsequently confirmed v1.1.0 on the Tally PC, exact selection of
 `Food Compnay`, and successful ERP connectivity. Ledger creation then failed for
 35 mappings. A one-ledger diagnostic was reported as HTTP 200 with "Unknown

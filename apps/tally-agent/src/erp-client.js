@@ -33,9 +33,13 @@ async function call(path, { method = 'GET', body } = {}, c = config.get()) {
     if (json.success !== true || !json.data || typeof json.data !== 'object') throw new Error('ERP response is missing its success/data envelope.');
     return json.data;
   } catch (err) {
-    err.source = 'ERP';
-    if (err.name === 'TimeoutError') err.message = 'ERP did not respond within 30s.';
-    throw err;
+    // AbortSignal.timeout rejects with a DOMException whose message is a
+    // getter. Wrap the failure instead of mutating that read-only exception.
+    const failure = new Error(err?.name === 'TimeoutError'
+      ? 'ERP did not respond within 30s.' : err?.message || String(err), { cause: err });
+    failure.source = 'ERP';
+    if (Number.isInteger(err?.status)) failure.status = err.status;
+    throw failure;
   }
 }
 
