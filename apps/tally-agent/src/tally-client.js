@@ -35,6 +35,22 @@ function postXml(xml) {
 }
 
 /**
+ * The companies TallyPrime currently has open, exactly as Tally spells them.
+ * Returns null (not []) if the probe itself failed, so callers can tell
+ * "no companies open" apart from "couldn't ask".
+ */
+async function listOpenCompanies() {
+  try {
+    const probe = '<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Data</TYPE><ID>List of Companies</ID></HEADER><BODY><DESC></DESC></BODY></ENVELOPE>';
+    const { status, body } = await postXml(probe);
+    if (status !== 200) return null;
+    return [...body.matchAll(/<NAME>([\s\S]*?)<\/NAME>/gi)].map((m) => m[1].trim()).filter(Boolean);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Is Tally reachable AND is the company we're supposed to post into actually
  * open? Answering only the first question is how a dashboard shows a healthy
  * green agent while every voucher fails against the wrong company — so this
@@ -53,16 +69,23 @@ async function ping() {
         error: 'No Tally company name configured — set TALLY_COMPANY so vouchers cannot land in the wrong company.',
       };
     }
-    // Tally lists the open companies as <NAME>..</NAME> entries; compare loosely
-    // on case/whitespace since the operator types this by hand.
-    const names = [...body.matchAll(/<NAME>([\s\S]*?)<\/NAME>/gi)].map((m) => m[1].trim().toLowerCase());
+    // Tally lists the open companies as <NAME>..</NAME> entries. The ping check
+    // is deliberately loose on case/whitespace — but a voucher's SVCURRENTCOMPANY
+    // must match Tally *exactly*, so when the loose match passes on a name that
+    // isn't identical, say so and quote Tally's own spelling.
+    const openExact = [...body.matchAll(/<NAME>([\s\S]*?)<\/NAME>/gi)].map((m) => m[1].trim()).filter(Boolean);
+    const names = openExact.map((n) => n.toLowerCase());
     const wanted = c.tallyCompany.trim().toLowerCase();
     const companyOpen = names.length === 0 ? true : names.some((n) => n === wanted);
-    return {
-      reachable: true,
-      companyOpen,
-      error: companyOpen ? null : `Tally is running but "${c.tallyCompany}" is not open (open: ${names.join(', ') || 'none'}).`,
-    };
+    const exactMatch = openExact.some((n) => n === c.tallyCompany.trim());
+
+    let error = null;
+    if (!companyOpen) {
+      error = `Tally is running but "${c.tallyCompany}" is not open (open: ${openExact.join(', ') || 'none'}).`;
+    } else if (openExact.length && !exactMatch) {
+      error = `Configured name "${c.tallyCompany}" differs from Tally's spelling "${openExact.find((n) => n.toLowerCase() === wanted)}" — vouchers post by exact match, so set TALLY_COMPANY to exactly that.`;
+    }
+    return { reachable: true, companyOpen, exactMatch, openCompanies: openExact, error };
   } catch (err) {
     return { reachable: false, companyOpen: false, error: err.message || String(err) };
   }
@@ -118,4 +141,4 @@ async function send(xml) {
   return interpret(body);
 }
 
-module.exports = { postXml, ping, send, interpret };
+module.exports = { postXml, ping, send, interpret, listOpenCompanies };

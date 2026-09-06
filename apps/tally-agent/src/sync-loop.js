@@ -21,7 +21,7 @@ const { buildLedgerMessages, isAlreadyExists } = require('./ledger-xml');
 let timer = null;
 let running = false;
 const state = {
-  erpOk: false, tallyOk: false, lastRun: null, lastError: null, pushed: 0, failed: 0,
+  erpOk: false, tallyOk: false, tallyReachable: false, lastRun: null, lastError: null, pushed: 0, failed: 0,
   // Ledger auto-provisioning, reported every cycle (not just when something happened) —
   // so "toggle is off" / "nothing left to do" / "created 5" are all visible, not silent.
   ledgerCandidates: 0, ledgerCreated: 0, ledgerExists: 0, ledgerFailed: 0, ledgerFailures: [], provisioned: 0,
@@ -68,6 +68,21 @@ async function provisionLedgers(company) {
   };
 }
 
+/**
+ * Tally's "could not set 'SVCurrentCompany' to 'X'" means the voucher named a
+ * company Tally can't switch to — either not open, or not an exact-name match
+ * (SVCURRENTCOMPANY is case- and whitespace-sensitive). The bare message leaves
+ * the operator guessing what to type, so append Tally's own spelling of what's
+ * actually open.
+ */
+async function explainError(error, company) {
+  if (!error || !/SVCurrentCompany|current company/i.test(error)) return error;
+  const open = await tally.listOpenCompanies();
+  if (open === null) return `${error} — the agent is set to "${company}". Open that company in Tally (F3 → Select Company) with the name spelled exactly.`;
+  if (open.length === 0) return `${error} — no company is open in Tally. Open "${company}" (F3 → Select Company).`;
+  return `${error} — the agent is set to "${company}"; Tally has open: ${open.map((n) => `"${n}"`).join(', ')}. Set the agent's Tally company name to exactly one of those (it is case- and space-sensitive).`;
+}
+
 async function processItem(item, company) {
   const msgs = messagesFor(item, company);
   let lastResult = null;
@@ -81,7 +96,7 @@ async function processItem(item, company) {
         && (result.isNoOp || /not exist|no vouchers|could not find/i.test(result.error))) {
         continue;
       }
-      return { id: item.id, status: 'FAILED', error: result.error, tallyResponse: result.raw?.slice(0, 4000) };
+      return { id: item.id, status: 'FAILED', error: await explainError(result.error, company), tallyResponse: result.raw?.slice(0, 4000) };
     }
     lastResult = result;
   }
@@ -105,12 +120,16 @@ async function runOnce() {
     // Reachable is not enough — posting into the wrong company is worse than not
     // posting at all, so both have to be true before anything is sent.
     const probe = await tally.ping();
-    state.tallyOk = probe.reachable && probe.companyOpen;
+    state.tallyReachable = probe.reachable;
+    state.tallyOk = probe.reachable && probe.companyOpen && !probe.error;
     if (!probe.reachable) {
       state.lastError = probe.error || `Tally is not responding on ${config.get().tallyHost}:${config.get().tallyPort}`;
       return;
     }
-    if (!probe.companyOpen) { state.lastError = probe.error; return; }
+    // Stop before pushing if the company isn't open, or is open under a name that
+    // doesn't exactly match the config — every voucher would fail identically and
+    // burn its retry budget. probe.error carries the operator-facing explanation.
+    if (!probe.companyOpen || probe.error) { state.lastError = probe.error; return; }
 
     const company = config.get().tallyCompany;
 

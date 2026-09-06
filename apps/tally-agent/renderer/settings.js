@@ -31,10 +31,14 @@ $('save').addEventListener('click', async () => {
 
 $('test').addEventListener('click', async () => {
   $('status').textContent = 'Pinging Tally…';
-  const ok = await window.agent.pingTally();
-  $('status').textContent = ok
-    ? 'Tally responded on its HTTP port. Good.'
-    : 'No response from Tally. Open TallyPrime, load the company, and make sure the HTTP server is enabled (F1 → Settings → Connectivity).';
+  const p = await window.agent.pingTally();
+  if (p.ok) {
+    $('status').textContent = 'Tally responded and the company matches. Good.';
+  } else if (!p.reachable) {
+    $('status').textContent = 'No response from Tally. Open TallyPrime, load the company, and make sure the HTTP server is enabled (F1 → Settings → Connectivity).';
+  } else {
+    $('status').textContent = p.error || 'Tally responded, but the configured company is not open.';
+  }
 });
 
 $('now').addEventListener('click', async () => {

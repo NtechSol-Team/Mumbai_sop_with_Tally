@@ -46,7 +46,7 @@ function line(s) {
   const t = new Date().toLocaleTimeString();
   const bits = [
     `ERP ${s.erpOk ? 'ok' : 'DOWN'}`,
-    `Tally ${s.tallyOk ? 'ok' : 'not responding'}`,
+    `Tally ${s.tallyOk ? 'ok' : s.tallyReachable ? 'reachable, company not matched' : 'not responding'}`,
     ledgerBit(s),
     s.pushed ? `pushed ${s.pushed}` : null,
     s.failed ? `failed ${s.failed}` : null,

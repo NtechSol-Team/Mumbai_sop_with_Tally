@@ -53,7 +53,7 @@ ipcMain.handle('config:get', () => config.get());
 ipcMain.handle('config:save', (_e, patch) => { const c = config.set(patch); syncLoop.start(onState); return c; });
 ipcMain.handle('tally:ping', async () => {
   const p = await tally.ping();
-  return p.reachable && p.companyOpen;
+  return { ok: p.reachable && p.companyOpen && !p.error, ...p };
 });
 ipcMain.handle('sync:now', async () => { await syncLoop.runOnce(); return syncLoop.getState(); });
 ipcMain.handle('state:get', () => syncLoop.getState());
