@@ -67,6 +67,8 @@ export interface QueueRow {
   attempts: number;
   excludedReason: string | null;
   errorMessage: string | null;
+  /** Tally's raw XML reply to the last attempt — the fallback when errorMessage is vague. */
+  tallyResponse: string | null;
   tallyVoucherId: string | null;
   isReady: boolean;
   syncedAt: string | null;

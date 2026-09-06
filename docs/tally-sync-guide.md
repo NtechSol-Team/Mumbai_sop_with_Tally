@@ -473,7 +473,13 @@ here with one of four states:
 |---|---|---|
 | **`Could not set 'SVCurrentCompany' to '<name>'`** | The voucher named a company Tally can't switch to — either it isn't open, or the name isn't an **exact** match (Tally is case- and space-sensitive: `Mumbai Erp` ≠ `Mumbai ERP`). | Open the company in Tally (**F3 → Select Company**). Get its exact stored name from **F3 → Alter →** the *Name* field, and set the agent's *Tally company name* / `TALLY_COMPANY` to exactly that, then restart the agent. The agent's console and the dashboard now print the names Tally actually has open. |
 | **`Ledger '<name>' does not exist`** | A voucher line points at a ledger that isn't in this Tally company. | Fix that row in **Tally Sync → Ledger Mapping** to the name that exists, or create the ledger in Tally, then **Retry**. |
-| **`Voucher totals do not match`** / accepted but *created nothing* | Rare — usually a GST rounding edge or a duplicate `REMOTEID` already present. | Check the voucher in the ERP; if it looks right, open the Failed row's detail for Tally's raw response. |
+| **`Voucher totals do not match`** | Debits ≠ credits in the built voucher — usually a GST detail on the source document. | Open the document in the ERP and check the tax split; if `Block on GST rate mismatch` is on it should have been caught earlier. |
+| **`Tally reported N error(s) but gave no message`** | Tally rejected the voucher without putting the reason in the usual field. | Click **Show Tally's reply** on the failed row — the full XML response is there, and the reason (a ledger name, a missing tax rate, a GST registration detail) is somewhere in it. |
+
+**Seeing Tally's own words.** Every failed row on the Sync Dashboard now has a
+**Show Tally's reply** link — it opens Tally's raw XML response for that attempt,
+with a **Copy** button. When the one-line error isn't enough, that raw response
+always has the detail.
 
 ---
 

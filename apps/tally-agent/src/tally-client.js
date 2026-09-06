@@ -103,12 +103,48 @@ async function ping() {
  *     (Tally silently ignores a Create for an existing master), which is
  *     exactly what we want — see isNoOp below.
  */
+/** Tally XML entities + stray tags/control chars -> a plain readable string. */
+function tidy(s) {
+  return String(s)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&apos;/g, "'").replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+    .replace(/&#x?[0-9a-f]+;/gi, ' ')
+    .replace(/[\x00-\x1f\x7f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * The best error text Tally gave us. <LINEERROR> is the usual place; failing
+ * that, voucher rejections land in <DESC> / <ERRMSG>, and a malformed request
+ * comes back as a plain-text page with no tags at all. The looser sources are
+ * only consulted once we already know this response failed.
+ */
+function extractErrors(body, opts) {
+  const failed = opts && opts.failed;
+  const collect = (re) => {
+    const out = [];
+    for (const m of body.matchAll(re)) {
+      const t = tidy(m[1]);
+      if (t && t.length > 1 && !out.includes(t)) out.push(t);
+    }
+    return out;
+  };
+  let msgs = collect(/<LINEERROR>([\s\S]*?)<\/LINEERROR>/gi);
+  if (!msgs.length && failed) msgs = collect(/<(?:DESC|ERRMSG)>([\s\S]*?)<\/(?:DESC|ERRMSG)>/gi);
+  if (!msgs.length && failed && !/<ENVELOPE|<RESPONSE/i.test(body)) {
+    const t = tidy(body).slice(0, 300);
+    if (t) msgs = [t];
+  }
+  return msgs;
+}
+
 function interpret(body) {
   const num = (tag) => {
     const m = body.match(new RegExp(`<${tag}>\\s*(-?\\d+)\\s*</${tag}>`, 'i'));
     return m ? Number(m[1]) : 0;
   };
-  const lineError = (body.match(/<LINEERROR>([\s\S]*?)<\/LINEERROR>/i) || [])[1];
   const counts = {
     created: num('CREATED'),
     altered: num('ALTERED'),
@@ -118,9 +154,17 @@ function interpret(body) {
   };
   const changed = counts.created + counts.altered + counts.deleted;
   const lastVchId = (body.match(/<LASTVCHID>\s*(\d+)\s*<\/LASTVCHID>/i) || [])[1] || null;
+  const messages = extractErrors(body, { failed: counts.errors > 0 || changed <= 0 });
 
-  if (lineError) return { ok: false, error: lineError.trim(), counts, raw: body };
-  if (counts.errors > 0) return { ok: false, error: `Tally reported ${counts.errors} error(s)`, counts, raw: body };
+  if (messages.length) return { ok: false, error: messages.join(' | '), counts, raw: body };
+  if (counts.errors > 0) {
+    return {
+      ok: false,
+      error: `Tally reported ${counts.errors} error(s) but gave no message. Open "Tally's reply" below for the raw response — usually a ledger name, a GST detail, or voucher totals that don't match.`,
+      counts,
+      raw: body,
+    };
+  }
   if (changed <= 0) {
     return {
       ok: false,

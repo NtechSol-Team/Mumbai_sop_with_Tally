@@ -200,7 +200,9 @@ function QueueView({ mode }: { mode: 'active' | 'excluded' }) {
 
 function QueueRowView({ r, onRetry, retrying }: { r: QueueRow; onRetry: (id: string) => void; retrying: boolean }) {
   const m = STATUS_META[r.status];
+  const [showRaw, setShowRaw] = useState(false);
   return (
+    <>
     <TR>
       <TD>
         <p className="font-medium">{ENTITY_LABEL[r.entityType] ?? r.entityType}</p>
@@ -214,7 +216,21 @@ function QueueRowView({ r, onRetry, retrying }: { r: QueueRow; onRetry: (id: str
         {r.status === 'PENDING' && !r.isReady && <p className="mt-0.5 text-caption text-muted-foreground">building…</p>}
       </TD>
       <TD className="max-w-[22rem]">
-        {r.status === 'FAILED' && <p className="text-caption text-danger">{r.errorMessage}</p>}
+        {r.status === 'FAILED' && (
+          <>
+            <p className="text-caption text-danger">{r.errorMessage}</p>
+            {r.attempts > 0 && <p className="text-caption text-muted-foreground">{r.attempts} attempt{r.attempts > 1 ? 's' : ''}</p>}
+            {r.tallyResponse && (
+              <button
+                type="button"
+                onClick={() => setShowRaw((v) => !v)}
+                className="mt-0.5 text-caption text-primary underline-offset-2 hover:underline"
+              >
+                {showRaw ? 'Hide' : 'Show'} Tally&apos;s reply
+              </button>
+            )}
+          </>
+        )}
         {r.status === 'EXCLUDED' && <p className="text-caption text-muted-foreground">{r.excludedReason}</p>}
         {r.status === 'SYNCED' && <p className="text-caption text-muted-foreground">Tally id {r.tallyVoucherId ?? '—'}</p>}
         {r.status === 'PENDING' && <p className="text-caption text-muted-foreground">{r.isReady ? 'Ready — agent will post it' : 'Preparing the voucher'}</p>}
@@ -227,6 +243,26 @@ function QueueRowView({ r, onRetry, retrying }: { r: QueueRow; onRetry: (id: str
         )}
       </TD>
     </TR>
+    {showRaw && r.tallyResponse && (
+      <TR>
+        <TD colSpan={7} className="bg-muted/40">
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-caption font-medium text-muted-foreground">Tally&apos;s raw response</span>
+            <button
+              type="button"
+              onClick={() => { navigator.clipboard?.writeText(r.tallyResponse ?? ''); toast.success('Copied'); }}
+              className="inline-flex items-center gap-1 text-caption text-primary hover:underline"
+            >
+              <Copy className="h-3 w-3" /> Copy
+            </button>
+          </div>
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded bg-background p-2 text-caption text-muted-foreground">
+            {r.tallyResponse}
+          </pre>
+        </TD>
+      </TR>
+    )}
+    </>
   );
 }
 

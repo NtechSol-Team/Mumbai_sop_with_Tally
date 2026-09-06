@@ -96,7 +96,7 @@ async function processItem(item, company) {
         && (result.isNoOp || /not exist|no vouchers|could not find/i.test(result.error))) {
         continue;
       }
-      return { id: item.id, status: 'FAILED', error: await explainError(result.error, company), tallyResponse: result.raw?.slice(0, 4000) };
+      return { id: item.id, status: 'FAILED', error: await explainError(result.error, company), tallyResponse: result.raw?.slice(0, 7500) };
     }
     lastResult = result;
   }
@@ -104,7 +104,7 @@ async function processItem(item, company) {
     id: item.id,
     status: 'SYNCED',
     tallyVoucherId: lastResult?.tallyVoucherId || undefined,
-    tallyResponse: lastResult?.raw?.slice(0, 4000),
+    tallyResponse: lastResult?.raw?.slice(0, 7500),
   };
 }
 

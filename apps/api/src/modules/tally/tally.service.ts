@@ -79,6 +79,8 @@ export async function listQueue(query: { page?: number; limit?: number; status?:
       attempts: r.attempts,
       excludedReason: r.excludedReason,
       errorMessage: r.errorMessage,
+      // Only worth sending for a row the owner might open — a FAILED one.
+      tallyResponse: r.status === TallySyncStatus.FAILED ? r.tallyResponse : null,
       tallyVoucherId: r.tallyVoucherId,
       isReady: r.status === TallySyncStatus.PENDING && r.payloadJson != null,
       syncedAt: r.syncedAt,
