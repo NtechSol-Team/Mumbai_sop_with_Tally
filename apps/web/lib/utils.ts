@@ -1,5 +1,11 @@
 import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { extendTailwindMerge } from 'tailwind-merge';
+
+// Our typography aliases are font sizes, not text colors. Without this,
+// merging text-label after text-primary-foreground removes the button color.
+const twMerge = extendTailwindMerge({
+  extend: { classGroups: { 'font-size': [{ text: ['caption', 'body', 'label', 'card-title', 'page-heading', 'kpi'] }] } },
+});
 
 /** Merge conditional + Tailwind class names with conflict resolution. */
 export function cn(...inputs: ClassValue[]): string {

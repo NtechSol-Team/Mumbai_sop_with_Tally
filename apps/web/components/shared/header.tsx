@@ -36,7 +36,7 @@ export function Header() {
 
   return (
     <header
-      className="sticky top-0 z-10 flex h-16 items-center justify-between gap-3 border-b border-border bg-card/80 px-4 backdrop-blur sm:px-6"
+      className="arthx-header sticky top-0 z-10 flex h-[76px] items-center justify-between gap-3 border-b border-border bg-card/80 px-4 backdrop-blur sm:px-6"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <div className="flex min-w-0 items-center gap-2">
@@ -49,8 +49,8 @@ export function Header() {
           <Menu className="h-5 w-5" />
         </button>
         <div className="min-w-0">
-          <h1 className="truncate text-label font-bold leading-none sm:text-page-heading">{titleFromPath(pathname)}</h1>
-          <p className="mt-1 hidden text-caption text-muted-foreground sm:block">Mumbai ERP</p>
+          <h1 className="truncate text-label font-bold leading-none sm:text-xl">{titleFromPath(pathname)}</h1>
+          <p className="mt-1 hidden text-caption text-muted-foreground sm:block">Arthx ERP / Workspace</p>
         </div>
       </div>
 
@@ -88,7 +88,7 @@ export function Header() {
               {ROLE_LABEL[user.role]}
             </Badge>
           </div>
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-caption font-bold text-primary-foreground">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-caption font-bold text-primary">
             {initials}
           </div>
         </div>

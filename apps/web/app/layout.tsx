@@ -6,8 +6,8 @@ import { Providers } from './providers';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: 'Mumbai ERP',
-  description: 'Food manufacturing & franchise management system',
+  title: 'Arthx ERP',
+  description: 'Arthx ERP — one workspace for operations, finance, and franchise management',
 };
 
 const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';

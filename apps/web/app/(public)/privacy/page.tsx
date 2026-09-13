@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Privacy Policy — Mumbai ERP' };
+export const metadata: Metadata = { title: 'Privacy Policy — Arthx ERP' };
 
 export default function PrivacyPage() {
   return (

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Terms & Conditions — Mumbai ERP' };
+export const metadata: Metadata = { title: 'Terms & Conditions — Arthx ERP' };
 
 export default function TermsPage() {
   return (

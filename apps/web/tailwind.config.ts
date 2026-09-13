@@ -53,12 +53,12 @@ const config: Config = {
         },
       },
       borderRadius: {
-        lg: '8px', // cards
-        md: '6px', // buttons
-        sm: '4px', // inputs
+        lg: '14px', // cards
+        md: '9px', // buttons
+        sm: '7px', // inputs
       },
       boxShadow: {
-        card: '0 1px 3px rgba(0,0,0,0.08)',
+        card: '0 2px 8px rgba(16,35,75,0.025), 0 1px 2px rgba(16,35,75,0.025)',
         'card-hover': '0 4px 16px rgba(17,24,39,0.08), 0 1px 3px rgba(17,24,39,0.06)',
         popover: '0 12px 32px rgba(17,24,39,0.14), 0 2px 8px rgba(17,24,39,0.08)',
         nav: '4px 0 24px rgba(17,24,39,0.10)',

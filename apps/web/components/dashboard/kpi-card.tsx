@@ -21,11 +21,11 @@ const accentBg: Record<NonNullable<KpiCardProps['accent']>, string> = {
 
 export function KpiCard({ label, value, icon: Icon, changePct, href, accent = 'primary' }: KpiCardProps) {
   const body = (
-    <Card className={cn('p-5 transition-shadow', href && 'cursor-pointer hover:shadow-md')}>
+    <Card className={cn('relative h-full min-h-[130px] overflow-hidden p-5 transition-shadow', href && 'cursor-pointer hover:shadow-md')}>
       <div className="flex items-start justify-between">
         <div className="min-w-0">
           <p className="text-caption font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-          <p className="mt-2 text-kpi font-bold leading-none">{value}</p>
+          <p className="mt-2 text-kpi font-semibold leading-none tracking-tight tabular-nums">{value}</p>
           {changePct !== undefined && (
             <div
               className={cn(
@@ -38,12 +38,12 @@ export function KpiCard({ label, value, icon: Icon, changePct, href, accent = 'p
             </div>
           )}
         </div>
-        <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-md', accentBg[accent])}>
+        <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', accentBg[accent])}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
     </Card>
   );
 
-  return href ? <Link href={href}>{body}</Link> : body;
+  return href ? <Link href={href} className="block h-full">{body}</Link> : body;
 }

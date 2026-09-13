@@ -35,6 +35,7 @@ import {
 } from '@/hooks/useDeveloperExpenses';
 import { getSocket } from '@/lib/socket';
 import { KpiCard } from '@/components/dashboard/kpi-card';
+import { Brand } from '@/components/shared/brand';
 import { ROLE_LABEL } from '@/components/shared/nav-config';
 import { OutletPricesDialog } from '@/components/outlets/outlet-prices-dialog';
 
@@ -70,6 +71,7 @@ function UnlockScreen() {
       <div className="w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><Terminal className="h-7 w-7" /></div>
+          <div className="mb-5 inline-flex rounded-lg bg-white px-4 py-3"><Brand /></div>
           <h1 className="text-page-heading font-bold">Developer Console</h1>
           <p className="text-body text-slate-400">Restricted area. Enter the developer passphrase to manage outlets.</p>
         </div>

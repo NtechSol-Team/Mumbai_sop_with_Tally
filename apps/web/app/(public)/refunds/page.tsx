@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Cancellations & Refunds — Mumbai ERP' };
+export const metadata: Metadata = { title: 'Cancellations & Refunds — Arthx ERP' };
 
 export default function RefundsPage() {
   return (

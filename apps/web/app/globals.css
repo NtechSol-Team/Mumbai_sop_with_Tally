@@ -2,39 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/*
- * Design tokens (HSL) derived from the brand palette:
- *   white #FFFFFF · surface #F8F9FA · indigo #3730A3 · green #16A34A
- *   amber #D97706 · red #DC2626 · text #111827 · muted #6B7280
- */
+/* Arthx: cobalt actions, midnight navigation, and cool neutral work surfaces. */
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222 47% 11%;        /* #111827 */
-    --surface: 210 17% 98%;           /* #F8F9FA */
+    --foreground: 222 47% 11%;
+    --surface: 220 33% 97%;
 
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
 
-    --primary: 245 51% 41%;           /* #3730A3 */
+    --primary: 226 77% 46%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 17% 96%;
     --secondary-foreground: 222 47% 11%;
 
     --muted: 210 17% 96%;
-    --muted-foreground: 220 9% 46%;   /* #6B7280 */
+    --muted-foreground: 220 9% 46%;
 
-    --accent: 245 51% 96%;
-    --accent-foreground: 245 51% 41%;
+    --accent: 225 100% 96%;
+    --accent-foreground: 226 77% 40%;
 
-    --success: 142 71% 37%;           /* #16A34A */
-    --warning: 32 95% 44%;            /* #D97706 */
-    --danger: 0 72% 51%;              /* #DC2626 */
+    --success: 142 71% 37%;
+    --warning: 32 95% 44%;
+    --danger: 0 72% 51%;
 
-    --border: 220 13% 91%;
+    --border: 220 24% 90%;
     --input: 220 13% 87%;
-    --ring: 245 51% 41%;
+    --ring: 226 77% 46%;
   }
 }
 
@@ -82,4 +78,46 @@
   .scrollbar-thin::-webkit-scrollbar-thumb {
     @apply rounded-full bg-border;
   }
+}
+
+@layer base {
+  ::selection { background: #d9e4ff; color: #102967; }
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+  input, select, textarea { accent-color: hsl(var(--primary)); }
+  h1, h2, h3 { letter-spacing: -0.025em; }
+}
+
+@layer components {
+  .arthx-sidebar { background: #0c1933; color: #d2dcee; }
+  .arthx-hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 85% 15%, #244bb3 0%, transparent 55%), #10234b;
+  }
+  .arthx-hero::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    right: -60px;
+    top: -100px;
+    width: 340px;
+    height: 500px;
+    border: 55px solid #ffffff08;
+    transform: rotate(35deg);
+    pointer-events: none;
+  }
+  .arthx-grid {
+    background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  .arthx-enter { animation: arthx-enter 400ms ease-out both; }
+}
+@keyframes arthx-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+@media print {
+  .arthx-sidebar, .arthx-header, .arthx-skip { display: none !important; }
+  body { background: white; }
 }

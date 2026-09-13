@@ -301,7 +301,7 @@ export default function ExpensesPage() {
                   formatter={(v: number) => [formatINR(v), 'Spent']}
                   labelFormatter={(m: string) => format(monthDate(m), 'MMMM yyyy')}
                 />
-                <Line type="monotone" dataKey="total" stroke="#3730A3" strokeWidth={2.5} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="total" stroke="#234CCE" strokeWidth={2.5} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           )}

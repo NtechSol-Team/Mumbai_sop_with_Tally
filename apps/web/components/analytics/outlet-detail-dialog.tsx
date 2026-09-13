@@ -52,7 +52,7 @@ export function OutletDetailDialog({ outletId, onClose }: { outletId: string | n
                   <YAxis yAxisId="right" orientation="right" allowDecimals={false} tick={{ fontSize: 11, fill: '#6B7280' }} />
                   <Tooltip formatter={(v: number, n: string) => (n === 'Orders' ? v : formatINR(v))} />
                   <Legend />
-                  <Bar yAxisId="left" dataKey="billed" name="Billed" fill="#3730A3" radius={[4, 4, 0, 0]} />
+                  <Bar yAxisId="left" dataKey="billed" name="Billed" fill="#234CCE" radius={[4, 4, 0, 0]} />
                   <Bar yAxisId="left" dataKey="paid" name="Paid" fill="#16A34A" radius={[4, 4, 0, 0]} />
                   <Line yAxisId="right" type="monotone" dataKey="orders" name="Orders" stroke="#D97706" strokeWidth={2} />
                 </ComposedChart>

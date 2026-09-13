@@ -81,7 +81,7 @@ function SalesTab() {
                 <Legend />
                 <Line type="monotone" dataKey="pos" name="POS" stroke="#16A34A" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="billing" name="Billing" stroke="#D97706" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="total" name="Total" stroke="#3730A3" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="total" name="Total" stroke="#234CCE" strokeWidth={2.5} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -107,7 +107,7 @@ function TopChart({ title, data, money }: { title: string; data: Array<{ name: s
               <XAxis type="number" tick={{ fontSize: 11, fill: '#6B7280' }} tickFormatter={(v) => (money ? `₹${v}` : `${v}`)} />
               <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11, fill: '#6B7280' }} />
               <Tooltip formatter={(v: number) => (money ? formatINR(v) : v)} />
-              <Bar dataKey="value" fill="#3730A3" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="value" fill="#234CCE" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -235,7 +235,7 @@ function PosDetail({ outletId, header }: { outletId?: string | 'main'; header?: 
                 labelFormatter={(d: string) => d}
               />
               <Legend />
-              <Bar yAxisId="revenue" dataKey="revenue" name="Revenue" fill="#3730A3" radius={[4, 4, 0, 0]} />
+              <Bar yAxisId="revenue" dataKey="revenue" name="Revenue" fill="#234CCE" radius={[4, 4, 0, 0]} />
               <Line yAxisId="txns" type="monotone" dataKey="transactions" name="Transactions" stroke="#16A34A" strokeWidth={2} dot={false} />
             </BarChart>
           </ResponsiveContainer>
@@ -273,7 +273,7 @@ function PosDetail({ outletId, header }: { outletId?: string | 'main'; header?: 
                 <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#6B7280' }} tickFormatter={(m: string) => m.split(' ')[0]} />
                 <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} />
                 <Tooltip formatter={(v: number) => formatINR(v)} labelFormatter={(m: string) => m} />
-                <Bar dataKey="revenue" name="Revenue" fill="#3730A3" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="revenue" name="Revenue" fill="#234CCE" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -315,7 +315,7 @@ function PosDetail({ outletId, header }: { outletId?: string | 'main'; header?: 
                 <XAxis dataKey="hour" tick={{ fontSize: 10, fill: '#6B7280' }} tickFormatter={fmtHour} interval={2} />
                 <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} />
                 <Tooltip formatter={(v: number) => formatINR(v)} labelFormatter={(h: number) => fmtHour(h)} />
-                <Bar dataKey="revenue" fill="#3730A3" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="revenue" fill="#234CCE" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -606,7 +606,7 @@ function FinancialTab() {
               <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} />
               <Tooltip formatter={(v: number) => formatINR(v)} />
               <Legend />
-              <Bar dataKey="total_revenue" name="Revenue" fill="#3730A3" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="total_revenue" name="Revenue" fill="#234CCE" radius={[4, 4, 0, 0]} />
               <Bar dataKey="expenses" name="Expenses" fill="#D97706" radius={[4, 4, 0, 0]} />
               <Bar dataKey="net_profit" name="Net Profit" fill="#16A34A" radius={[4, 4, 0, 0]} />
             </BarChart>
