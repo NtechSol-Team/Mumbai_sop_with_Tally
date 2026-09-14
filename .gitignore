@@ -23,6 +23,7 @@ out/
 !apps/print-agent-windows/build/
 !apps/print-agent-windows/build/**
 !apps/tally-agent/build/
+apps/tally-agent/build/*
 !apps/tally-agent/build/icon.png
 !apps/tally-agent/build/icon.svg
 
