@@ -9,7 +9,7 @@ const path = require('node:path');
  * runs headless (see run-headless.js) for testing without the tray.
  *
  * Path:
- *   • inside Electron → <userData>/config.json  (set via setStorePath from main.js)
+ *   • desktop → reuses the headless config when present, then legacy Electron paths.
  *   • headless        → $MUMBAI_ERP_TALLY_CONFIG, else ~/.mumbai-erp-tally-agent/config.json
  *
  * Env vars override the file for a given run (handy for a quick test):

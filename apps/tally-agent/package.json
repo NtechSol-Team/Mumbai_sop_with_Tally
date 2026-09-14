@@ -8,7 +8,7 @@
   "author": "Mumbai ERP",
   "license": "UNLICENSED",
   "scripts": {
-    "test": "node --test test/*.test.js",
+    "test": "node scripts/test.cjs",
     "start": "electron .",
     "headless": "node src/run-headless.js",
     "dist": "electron-builder --win nsis --x64 --publish never"
