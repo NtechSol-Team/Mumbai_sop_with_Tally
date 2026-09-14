@@ -24,6 +24,7 @@ const DEFAULTS = {
   tallyCompany: '',
   pollSeconds: 20,
   label: 'Tally PC',
+  startWithWindows: true,
 };
 
 let storePath =
@@ -56,12 +57,14 @@ function get() {
     tallyCompany: String(env.TALLY_COMPANY ?? f.tallyCompany ?? ''),
     pollSeconds: Number(env.POLL_SECONDS ?? f.pollSeconds ?? 20),
     label: String(env.AGENT_LABEL ?? f.label ?? 'Tally PC'),
+    startWithWindows: f.startWithWindows ?? true,
   };
   validate(c);
   return Object.freeze(c);
 }
 
 function validate(c) {
+  if (c.startWithWindows !== undefined && typeof c.startWithWindows !== 'boolean') throw new Error('Start with Windows must be enabled or disabled.');
   if (!Number.isInteger(c.tallyPort) || c.tallyPort < 1 || c.tallyPort > 65535) throw new Error('Tally port must be an integer from 1 to 65535.');
   if (!Number.isFinite(c.pollSeconds) || c.pollSeconds < 5 || c.pollSeconds > 3600) throw new Error('Poll interval must be from 5 to 3600 seconds.');
   if (!c.tallyHost || /[\s/]/u.test(c.tallyHost)) throw new Error('Tally host must be a hostname or IP address, without a URL scheme or path.');

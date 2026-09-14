@@ -2,10 +2,10 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Mumbai ERP Tally Sync — Settings</title>
+  <title>Arthx ERP Tally Sync — Settings</title>
   <style>
-    :root { color-scheme: light dark; }
-    body { font: 13px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; margin: 0; padding: 20px; }
+    :root { color-scheme: light; }
+    body { font: 13px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; margin: 0; padding: 24px; color: #13213c; background: #f5f7fc; }
     h1 { font-size: 15px; margin: 0 0 4px; }
     p.sub { color: #6b7280; margin: 0 0 16px; }
     label { display: block; font-weight: 600; margin: 12px 0 4px; }
@@ -13,18 +13,24 @@
     button:disabled { opacity: 0.6; cursor: wait; }
     .row { display: flex; gap: 10px; }
     .row > div { flex: 1; }
-    button { margin-top: 16px; padding: 8px 14px; border: 0; border-radius: 6px; background: #1e6f53; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+    button { margin-top: 16px; padding: 8px 14px; border: 0; border-radius: 6px; background: #234cce; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
     button.ghost { background: #e2e8f0; color: #0f172a; }
     #status { margin-top: 14px; padding: 10px; border-radius: 6px; background: #f1f5f9; white-space: pre-wrap; }
+    .brand { display: flex; gap: 14px; align-items: center; margin-bottom: 22px; }
+    .brand img { width: 130px; height: auto; }
+    .brand span { border-left: 1px solid #cbd5e1; padding-left: 14px; color: #52617b; font-size: 12px; }
+    .startup { display: flex; gap: 9px; align-items: center; }
+    .startup input { width: 17px; height: 17px; accent-color: #234cce; }
     .hint { color: #6b7280; font-weight: 400; font-size: 12px; }
   </style>
 </head>
 <body>
-  <h1>Mumbai ERP Tally Sync Agent</h1>
+  <div class="brand"><img src="./arthx.png" alt="Arthx" /><span>ERP / Tally Agent</span></div>
+  <h1>Tally Sync Agent</h1>
   <p id="version" class="hint"></p>
-  <p class="sub">Runs beside Tally. Connects outward to Mumbai ERP and posts vouchers into Tally on this machine.</p>
+  <p class="sub">Runs beside Tally. Connects outward to Arthx ERP and posts vouchers into Tally on this machine.</p>
 
-  <label for="erpUrl">Mumbai ERP address <span class="hint">— the API URL your team gave you</span></label>
+  <label for="erpUrl">Arthx ERP address <span class="hint">— the API URL your team gave you</span></label>
   <input id="erpUrl" placeholder="https://api.your-mumbai-erp-domain.com" />
 
   <label for="agentToken">Pairing token <span class="hint">— from Settings → Tally Sync → Generate token</span></label>
@@ -52,6 +58,9 @@
   <label for="pollSeconds">Check every (seconds)</label>
   <input id="pollSeconds" value="20" />
 
+  <label class="startup"><input id="startWithWindows" type="checkbox" /> Start automatically when I sign in to Windows</label>
+  <p class="hint">Closing this window keeps the agent running in the system tray. Use Quit in the tray menu to stop it.</p>
+  <p id="startupError" role="alert" class="hint"></p>
   <div>
     <button id="save">Save</button>
     <button id="test" class="ghost">Test Tally connection</button>

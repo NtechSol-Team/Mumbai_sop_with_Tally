@@ -22,6 +22,8 @@ out/
 # not a build *output* dir like the "build/" pattern above assumes elsewhere.
 !apps/print-agent-windows/build/
 !apps/print-agent-windows/build/**
+!apps/tally-agent/build/
+!apps/tally-agent/build/**
 
 # Prisma
 apps/api/prisma/*.db

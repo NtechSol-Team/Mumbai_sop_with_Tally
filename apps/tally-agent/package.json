@@ -1,7 +1,7 @@
 {
   "name": "mumbai-erp-tally-agent",
-  "productName": "Mumbai ERP Tally Sync Agent",
-  "version": "1.1.3",
+  "productName": "Arthx Tally Sync Agent",
+  "version": "1.1.4",
   "description": "Runs on the client's Tally machine. Connects OUTWARD to Mumbai ERP, pulls validated accounting vouchers, and posts them into TallyPrime's local XML-over-HTTP interface on localhost:9000. One-way, ERP \u2192 Tally.",
   "private": true,
   "main": "src/main.js",
@@ -11,7 +11,7 @@
     "test": "node --test test/*.test.js",
     "start": "electron .",
     "headless": "node src/run-headless.js",
-    "dist": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
     "auto-launch": "^5.0.6",
@@ -24,12 +24,13 @@
   },
   "build": {
     "appId": "com.mumbaierp.tallyagent",
-    "productName": "Mumbai ERP Tally Sync Agent",
+    "productName": "Arthx Tally Sync Agent",
     "asar": true,
     "files": [
       "src/**/*",
       "renderer/**/*",
-      "package.json"
+      "package.json",
+      "build/*.png"
     ],
     "directories": {
       "buildResources": "build",
@@ -44,14 +45,15 @@
           ]
         }
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.png"
     },
     "nsis": {
       "oneClick": true,
       "perMachine": false,
       "createStartMenuShortcut": true,
       "runAfterFinish": true,
-      "artifactName": "${productName}-Setup-${version}.exe"
+      "artifactName": "Arthx-Tally-Agent-Setup-${version}.exe",
+      "createDesktopShortcut": true
     }
   }
 }

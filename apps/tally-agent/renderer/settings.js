@@ -46,6 +46,8 @@ async function action(message, work) {
     const c = await window.agent.getConfig();
     $('version').textContent = c.agentVersion ? `Version ${c.agentVersion}` : '';
     for (const field of FIELDS) $(field).value = c[field] ?? '';
+    $('startWithWindows').checked = c.startWithWindows !== false;
+    $('startupError').textContent = c.startupError || '';
     $('companySource').textContent = `Company setting comes from: ${c.companySource}`;
     render(await window.agent.getState());
   } catch (err) { $('status').textContent = err.message || String(err); }
@@ -65,11 +67,13 @@ $('discover').addEventListener('click', () => action('Asking Tally for its open 
 }));
 
 $('save').addEventListener('click', () => action('Saving settings…', async () => {
-  const patch = {};
+  const patch = { startWithWindows: $('startWithWindows').checked };
   for (const field of FIELDS) patch[field] = ['tallyPort', 'pollSeconds'].includes(field) ? Number($(field).value)
     : field === 'tallyCompany' ? $(field).value : $(field).value.trim();
   const saved = await window.agent.saveConfig(patch);
   for (const field of FIELDS) $(field).value = saved[field] ?? '';
+  const desktop = await window.agent.getConfig();
+  $('startupError').textContent = desktop.startupError || '';
   $('status').textContent = 'Saved. The agent will validate the exact company before sending anything.';
 }));
 

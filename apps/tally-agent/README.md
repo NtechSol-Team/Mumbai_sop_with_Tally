@@ -120,6 +120,42 @@ Electron and headless have separate default config files; set
 
 ## Upgrading and verifying
 
+### v1.1.4: Windows desktop installer
+
+`Arthx-Tally-Agent-Setup-1.1.4.exe` installs the agent for the current Windows user,
+adds desktop/Start menu shortcuts and launches the Settings window. Node.js and
+a command prompt are not required. Keep Tally running with the intended company
+open and its HTTP server enabled. This remains a user-session tray app, not a
+Windows service; it starts after the Windows user signs in.
+
+Before switching, stop the old terminal agent with Ctrl+C and remove any manual
+startup shortcut that launches `start-agent.bat`. Run only one agent. The GUI
+reuses `~/.mumbai-erp-tally-agent/config.json` when present, including the adjacent
+pending acknowledgement journal. It otherwise recognises legacy Electron config
+locations, and a fresh install uses the same default location as the CLI. An
+explicit `MUMBAI_ERP_TALLY_CONFIG` still wins. Check the displayed company and API
+address before syncing. Saved token files are never bundled into the installer.
+
+“Start automatically when I sign in to Windows” defaults to enabled and can be
+changed in Settings. Windows startup launches quietly to the tray; opening the
+desktop shortcut opens Settings. Closing Settings keeps the agent running;
+right-click the tray icon and choose Quit to stop it. A single-instance lock
+prevents a second desktop copy; it does not stop an independently running Node
+CLI or another Windows user's agent.
+
+The packaged tray image is now included. Branding follows Arthx ERP. The CI
+workflow `.github/workflows/tally-agent-windows.yml` builds on Windows x64, runs
+93 regression tests and executes the packaged app in `--smoke-test` mode to
+verify its native launch, tray image, Settings page and preload IPC bridge.
+Smoke mode never registers startup or starts syncing. It is a packaging check,
+not live Tally acceptance or a reboot test.
+
+Build locally on Windows with `npm ci`, `npm test`, then `npm run dist` in this
+directory. Output is under `dist/`. Builds without a signing certificate have
+an unverified publisher in Windows; verify the published SHA-256 checksum and
+use the supplied release download. Installing does not resolve missing GST
+ledgers or retained historical voucher exceptions.
+
 ### v1.1.3: accounting voucher entries and payment dependencies
 
 The operator's Tally screenshots show purchase vouchers PB-2026-00002 and
